@@ -1,10 +1,12 @@
 {
   "name": "db-builder-ts",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "db-builder-ts",
   "main": "dist/index.js",
   "types": "dist/index.ts",
-  "files": ["/dist"],
+  "files": [
+    "/dist"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
