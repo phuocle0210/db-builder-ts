@@ -1,27 +1,18 @@
 import mysql from "mysql2";
 import { mysqlResult, mysqlValue, mysqlKey } from "./types/db.type";
 
+let connectConfig: mysql.ConnectionOptions;
 
 class DatabaseConnection {
     protected connection: mysql.Connection;
-
-    constructor() {
-        this.connection = mysql.createConnection({
-            host: "localhost",
-            user: "root",
-            database: "dulieu"
-        });
+    
+    constructor(config: mysql.ConnectionOptions = {}) {
+        this.connection = mysql.createConnection(connectConfig);
     }
 }
 
-class DB {
-    public static table(tableName: string) {
-        return new Model(tableName);
-    }
-}
-
-export class Model extends DatabaseConnection {
-    private sql: string;
+class Model extends DatabaseConnection {
+    public sql: string;
     protected tableName: string;
     private listValue: mysqlValue[];
     protected primaryKey: mysqlKey;
@@ -95,8 +86,6 @@ export class Model extends DatabaseConnection {
         return this;
     }
 
-
-
     public getQuery(): string {
         this.connection.end();
         return this.sql;
@@ -104,5 +93,22 @@ export class Model extends DatabaseConnection {
 
     public getQueryNotConnection(): string {
         return this.sql;
+    }
+}
+
+class DB {
+    public static table(tableName: string) {
+        return new Model(tableName);
+    }
+}
+
+export default class DatabaseBuilder {
+    public static createConnection(config: mysql.ConnectionOptions) {
+        connectConfig = config;
+
+        return {
+            DB,
+            Model
+        }
     }
 }
