@@ -1,6 +1,6 @@
 {
   "name": "db-builder-ts",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "db-builder-ts",
   "main": "dist/index.js",
   "types": "dist/index.ts",
