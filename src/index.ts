@@ -55,12 +55,22 @@ class Model extends DatabaseConnection {
         return await this.get(fields).then((data: any) => data);
     }
 
+    public async first(fields: string[] = []) {
+        return await this.get(fields)
+        .then((data: any) => data[0])
+        .catch(_ => null);
+    }
+
+    private escape(data: string): string {
+        return `\`${data}\``;
+    }
+
     public async create(data: Object) {
         this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
         const keys: string[] = Object.keys(data);
-        
-        this.sql = this.sql
-        .replace("__FIELDS__", keys.join(", "))
+    
+        this.sql = this.sql 
+        .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
         .replace("__VALUES__", Array(keys.length).fill("?").join(", "));
 
         this.listValue = keys.map((key: string) => {
@@ -68,16 +78,40 @@ class Model extends DatabaseConnection {
         });
 
         return await this.execute()
-        .then(() => true)
+        .then((data) => data)
         .catch((error) => error);
     }
 
-    public async update() {
+    public async update(data: Object) {
+        this.sql = `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`;
+        const keys: string[] = Object.keys(data);
 
+        const _data: string[] = keys.map((key: any) => {
+            return (this.escape(key) + " = " + data[key as keyof Object]);
+        });
+
+        this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
+        return await this.execute()
+        .then((data) => data)
+        .catch((error) => error);
+    }
+
+    private kiemTraDieuKien(sql: string, dieuKien: string = "AND"): string {
+        return sql.includes("WHERE") ? dieuKien : "WHERE";
     }
 
     public where(field: string, condition: mysqlValue, value: mysqlValue = undefined) {
-        const dieuKien: string = this.sql.includes("where") ? "AND" : "WHERE";
+        const dieuKien: string = this.kiemTraDieuKien(this.sql);
+        const checkCondition: boolean = value !== undefined && typeof(condition) === "string";
+
+        this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
+        this.listValue.push(checkCondition ? value : condition);
+        // console.log(this.listValue);
+        return this;
+    }
+
+    public orWhere(field: string, condition: mysqlValue, value: mysqlValue = undefined) {
+        const dieuKien: string = this.kiemTraDieuKien(this.sql, "OR");
         const checkCondition: boolean = value !== undefined && typeof(condition) === "string";
 
         this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
