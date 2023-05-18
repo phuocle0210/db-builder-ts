@@ -55,27 +55,57 @@ class Model extends DatabaseConnection {
             return yield this.get(fields).then((data) => data);
         });
     }
+    first(fields = []) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield this.get(fields)
+                .then((data) => data[0])
+                .catch(_ => null);
+        });
+    }
+    escape(data) {
+        return `\`${data}\``;
+    }
     create(data) {
         return __awaiter(this, void 0, void 0, function* () {
             this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
             const keys = Object.keys(data);
             this.sql = this.sql
-                .replace("__FIELDS__", keys.join(", "))
+                .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
                 .replace("__VALUES__", Array(keys.length).fill("?").join(", "));
             this.listValue = keys.map((key) => {
                 return data[key];
             });
             return yield this.execute()
-                .then(() => true)
+                .then((data) => data)
                 .catch((error) => error);
         });
     }
-    update() {
+    update(data) {
         return __awaiter(this, void 0, void 0, function* () {
+            this.sql = `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`;
+            const keys = Object.keys(data);
+            const _data = keys.map((key) => {
+                return (this.escape(key) + " = " + data[key]);
+            });
+            this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
+            return yield this.execute()
+                .then((data) => data)
+                .catch((error) => error);
         });
     }
+    kiemTraDieuKien(sql, dieuKien = "AND") {
+        return sql.includes("WHERE") ? dieuKien : "WHERE";
+    }
     where(field, condition, value = undefined) {
-        const dieuKien = this.sql.includes("where") ? "AND" : "WHERE";
+        const dieuKien = this.kiemTraDieuKien(this.sql);
+        const checkCondition = value !== undefined && typeof (condition) === "string";
+        this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
+        this.listValue.push(checkCondition ? value : condition);
+        // console.log(this.listValue);
+        return this;
+    }
+    orWhere(field, condition, value = undefined) {
+        const dieuKien = this.kiemTraDieuKien(this.sql, "OR");
         const checkCondition = value !== undefined && typeof (condition) === "string";
         this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
         this.listValue.push(checkCondition ? value : condition);

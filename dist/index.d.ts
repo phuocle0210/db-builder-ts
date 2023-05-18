@@ -14,9 +14,13 @@ declare class Model extends DatabaseConnection {
     private execute;
     get(fields?: string[]): Promise<mysqlResult>;
     find(primaryKey: mysqlKey, fields?: string[]): Promise<any>;
+    first(fields?: string[]): Promise<any>;
+    private escape;
     create(data: Object): Promise<any>;
-    update(): Promise<void>;
+    update(data: Object): Promise<any>;
+    private kiemTraDieuKien;
     where(field: string, condition: mysqlValue, value?: mysqlValue): this;
+    orWhere(field: string, condition: mysqlValue, value?: mysqlValue): this;
     getQuery(): string;
     getQueryNotConnection(): string;
 }
