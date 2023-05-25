@@ -62,8 +62,10 @@ class Model extends DatabaseConnection {
         return __awaiter(this, void 0, void 0, function* () {
             if (fields.length > 0)
                 this.sql = this.sql.replace("*", fields.join(", "));
-            const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
-            this.listMethodChildren = listMethods;
+            if ((this instanceof Model) && this.constructor.name != "Model") {
+                const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
+                this.listMethodChildren = listMethods;
+            }
             // console.log(this[listMethods[0] as keyof this]);
             return yield this.execute()
                 .then((data) => __awaiter(this, void 0, void 0, function* () {

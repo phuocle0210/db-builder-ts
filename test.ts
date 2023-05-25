@@ -17,7 +17,9 @@ class Manga extends Model {
 }
 
 (async() => {
-    const m: Manga = new Manga();
-    const result: any = await m.get();
-    console.log(m.getResult());
+    // const m: Manga = new Manga();
+    // const result: any = await m.get();
+    // console.log(m.getResult());
+
+    console.log((await DB.table("manga").first() as any).id);
 })();
