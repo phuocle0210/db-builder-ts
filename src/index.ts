@@ -125,7 +125,7 @@ class Model extends DatabaseConnection {
     public async update(data: Object) {
         this.sql = this.sql
         .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
-        
+
         const keys: string[] = Object.keys(data);
 
         const _data: string[] = keys.map((key: any) => {
