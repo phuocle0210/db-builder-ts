@@ -17,10 +17,14 @@ class Model extends DatabaseConnection {
     private listValue: mysqlValue[];
     protected primaryKey: mysqlKey;
     protected hidden: string[];
+    private listMethodChildren: string[];
+    private result: any;
 
     constructor(tableName: string) {
         super();
 
+        this.result = null;
+        this.listMethodChildren = [];
         this.primaryKey = "id";
         this.tableName = tableName;
         this.sql = `SELECT * FROM ${this.tableName}`;
@@ -28,9 +32,27 @@ class Model extends DatabaseConnection {
         this.hidden = [];
     }
 
-    private async execute(): Promise<mysqlResult> {
+    private ping() {
+        try {
+            this.connection.query("select 1")
+        } catch(_) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public getResult() {
+        return JSON.parse(this.result);
+    }
+
+    private async execute(sql: string = ""): Promise<mysqlResult> {
+        if(!this.ping()) {
+            this.connection = mysql.createConnection(connectConfig);
+        }
+
         return await new Promise((res, rej) => {
-            this.connection.query(this.sql, this.listValue, (error, result) => {
+            this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result) => {
                 this.connection.end();
                 this.listValue = [];
 
@@ -46,7 +68,25 @@ class Model extends DatabaseConnection {
         if(fields.length > 0) 
             this.sql = this.sql.replace("*", fields.join(", "));
 
+        const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
+        this.listMethodChildren = listMethods;
+        // console.log(this[listMethods[0] as keyof this]);
+
         return await this.execute()
+        .then(async (data: any) => {
+            this.result = JSON.stringify(data);
+
+            if(this.listMethodChildren.length > 0) {
+                for(let i: number = 0; i < data.length; i++) {
+                    for(let j: number = 0; j < this.listMethodChildren.length; j++) {
+                        data[i][this.listMethodChildren[j]] = (this[this.listMethodChildren[j] as keyof this] as Function)()({...data[i]});
+                    }
+                }
+                return data;
+            }
+
+            return data;
+        })
         .catch((error: mysql.QueryError) => error);
     }
 
@@ -83,7 +123,9 @@ class Model extends DatabaseConnection {
     }
 
     public async update(data: Object) {
-        this.sql = `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`;
+        this.sql = this.sql
+        .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
+        
         const keys: string[] = Object.keys(data);
 
         const _data: string[] = keys.map((key: any) => {
@@ -128,7 +170,20 @@ class Model extends DatabaseConnection {
     public getQueryNotConnection(): string {
         return this.sql;
     }
+
+    public hasOne(tableName: string, primaryKey: string, foreign: string) {
+        return (x: any) => {
+            const _sql: string = `SELECT ${tableName}.* FROM ${this.tableName}, ${tableName}
+            WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
+            AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
+
+            return () => {
+                return this.execute(_sql).then((data: any) => data[0]);
+            }   
+        }
+    }
 }
+
 
 class DB {
     public static table(tableName: string) {

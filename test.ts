@@ -1,13 +1,23 @@
 import DatabaseBuilder from "./src";
 
-const { DB } = DatabaseBuilder.createConnection({
+const { DB, Model } = DatabaseBuilder.createConnection({
     host: 'localhost',
     user: 'root',
     database: 'nettruyen'
 });
 
+class Manga extends Model {
+    constructor() {
+        super("manga");
+    }
+
+    public user() {
+        return this.hasOne("chapters", "manga_id", "id");
+    }
+}
+
 (async() => {
-    console.log(await DB.table("manga")
-    .where("id", 1)
-    .first());
+    const m: Manga = new Manga();
+    const result: any = await m.get();
+    console.log(m.getResult());
 })();
