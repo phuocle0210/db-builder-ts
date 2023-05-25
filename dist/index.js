@@ -22,16 +22,33 @@ class DatabaseConnection {
 class Model extends DatabaseConnection {
     constructor(tableName) {
         super();
+        this.result = null;
+        this.listMethodChildren = [];
         this.primaryKey = "id";
         this.tableName = tableName;
         this.sql = `SELECT * FROM ${this.tableName}`;
         this.listValue = [];
         this.hidden = [];
     }
-    execute() {
+    ping() {
+        try {
+            this.connection.query("select 1");
+        }
+        catch (_) {
+            return false;
+        }
+        return true;
+    }
+    getResult() {
+        return JSON.parse(this.result);
+    }
+    execute(sql = "") {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!this.ping()) {
+                this.connection = mysql2_1.default.createConnection(connectConfig);
+            }
             return yield new Promise((res, rej) => {
-                this.connection.query(this.sql, this.listValue, (error, result) => {
+                this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result) => {
                     this.connection.end();
                     this.listValue = [];
                     if (error)
@@ -45,7 +62,22 @@ class Model extends DatabaseConnection {
         return __awaiter(this, void 0, void 0, function* () {
             if (fields.length > 0)
                 this.sql = this.sql.replace("*", fields.join(", "));
+            const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
+            this.listMethodChildren = listMethods;
+            // console.log(this[listMethods[0] as keyof this]);
             return yield this.execute()
+                .then((data) => __awaiter(this, void 0, void 0, function* () {
+                this.result = JSON.stringify(data);
+                if (this.listMethodChildren.length > 0) {
+                    for (let i = 0; i < data.length; i++) {
+                        for (let j = 0; j < this.listMethodChildren.length; j++) {
+                            data[i][this.listMethodChildren[j]] = this[this.listMethodChildren[j]]()(Object.assign({}, data[i]));
+                        }
+                    }
+                    return data;
+                }
+                return data;
+            }))
                 .catch((error) => error);
         });
     }
@@ -82,7 +114,8 @@ class Model extends DatabaseConnection {
     }
     update(data) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.sql = `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`;
+            this.sql = this.sql
+                .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
             const keys = Object.keys(data);
             const _data = keys.map((key) => {
                 return (this.escape(key) + " = " + data[key]);
@@ -118,6 +151,16 @@ class Model extends DatabaseConnection {
     }
     getQueryNotConnection() {
         return this.sql;
+    }
+    hasOne(tableName, primaryKey, foreign) {
+        return (x) => {
+            const _sql = `SELECT ${tableName}.* FROM ${this.tableName}, ${tableName}
+            WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
+            AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
+            return () => {
+                return this.execute(_sql).then((data) => data[0]);
+            };
+        };
     }
 }
 class DB {

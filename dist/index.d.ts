@@ -10,7 +10,11 @@ declare class Model extends DatabaseConnection {
     private listValue;
     protected primaryKey: mysqlKey;
     protected hidden: string[];
+    private listMethodChildren;
+    private result;
     constructor(tableName: string);
+    private ping;
+    getResult(): any;
     private execute;
     get(fields?: string[]): Promise<mysqlResult>;
     find(primaryKey: mysqlKey, fields?: string[]): Promise<any>;
@@ -23,6 +27,7 @@ declare class Model extends DatabaseConnection {
     orWhere(field: string, condition: mysqlValue, value?: mysqlValue): this;
     getQuery(): string;
     getQueryNotConnection(): string;
+    hasOne(tableName: string, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
 }
 declare class DB {
     static table(tableName: string): Model;
