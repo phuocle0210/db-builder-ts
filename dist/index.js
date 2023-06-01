@@ -39,6 +39,11 @@ class Model extends DatabaseConnection {
         }
         return true;
     }
+    end() {
+        if (this.ping()) {
+            this.connection.end();
+        }
+    }
     getResult() {
         return JSON.parse(this.result);
     }
@@ -63,7 +68,9 @@ class Model extends DatabaseConnection {
             if (fields.length > 0)
                 this.sql = this.sql.replace("*", fields.join(", "));
             if ((this instanceof Model) && this.constructor.name != "Model") {
+                // console.log(this.constructor.name)
                 const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
+                // console.log(listMethods);
                 this.listMethodChildren = listMethods;
             }
             // console.log(this[listMethods[0] as keyof this]);
@@ -110,7 +117,9 @@ class Model extends DatabaseConnection {
                 return data[key];
             });
             return yield this.execute()
-                .then((data) => data)
+                .then((_) => __awaiter(this, void 0, void 0, function* () {
+                return true;
+            }))
                 .catch((error) => error);
         });
     }
@@ -156,12 +165,19 @@ class Model extends DatabaseConnection {
     }
     hasOne(tableName, primaryKey, foreign) {
         return (x) => {
-            const _sql = `SELECT ${tableName}.* FROM ${this.tableName}, ${tableName}
-            WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
-            AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
-            return () => {
-                return this.execute(_sql).then((data) => data[0]);
-            };
+            const q = tableName.where(primaryKey, x[foreign]);
+            q.end();
+            // const _sql: string = `SELECT ${tableName}.* FROM ${this.tableName}, ${tableName}
+            // WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
+            // AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
+            return () => q.first(); //return this.execute(_sql).then((data: any) => data[0]);
+        };
+    }
+    hasMany(tableName, primaryKey, foreign) {
+        return (x) => {
+            const q = tableName.where(primaryKey, x[foreign]);
+            q.end();
+            return () => q.get();
         };
     }
 }
