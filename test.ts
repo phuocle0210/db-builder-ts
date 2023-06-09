@@ -35,9 +35,12 @@ class Chapter extends Model {
     // const result: any = await m.get();
     // console.log(await result[0].chapters());
 
-    const c: Chapter = new Chapter();
-    const result: any = await c.get();
-    console.log(JSON.stringify(result[0].created_at));
+    console.log(await DB.table("users").firstOrCreate({
+        name: "LeVanPhuoc",
+        username: "conSoLong"
+    }, {
+        password: "99999a"  
+    }));
 
     // console.log((await DB.table("manga").first() as any).id);
 })();

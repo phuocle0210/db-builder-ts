@@ -119,10 +119,46 @@ class Model extends DatabaseConnection {
                 return data[key];
             });
             return yield this.execute()
-                .then((_) => __awaiter(this, void 0, void 0, function* () {
+                .then((data) => data)
+                .then((result) => __awaiter(this, void 0, void 0, function* () {
+                if (result.affectedRows != 0 && result.insertId != 0) {
+                    this.where("id", result.insertId);
+                    for (const _key of keys)
+                        this.where(_key, data[_key]);
+                    return yield this.first();
+                }
                 return true;
             }))
                 .catch((error) => error);
+        });
+    }
+    getListKey(data) {
+        const keys = Object.keys(data);
+        return keys;
+    }
+    getListValueForKey(keys, obj) {
+        return keys.map((key) => obj[key]);
+    }
+    sqlConvertKeyAndValue(find) {
+        const keys = this.getListKey(find);
+        // const values: mysqlValue[] = this.getListValueForKey(keys, find);
+        for (const key of keys) {
+            this.where(key, find[key]);
+        }
+        return this.sql;
+    }
+    sqlToConvertKeyAndValue(find) {
+        const temp = this.sql;
+        const sql = this.sqlConvertKeyAndValue(find);
+        this.sql = temp;
+        return sql;
+    }
+    firstOrCreate(find, create) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.sqlConvertKeyAndValue(find);
+            const findFirstData = yield this.first();
+            let result = { type: "create" };
+            return !findFirstData ? Object.assign(Object.assign({}, result), { data: yield this.create(Object.assign(Object.assign({}, create), find)) }) : { type: "first", data: findFirstData };
         });
     }
     update(data) {

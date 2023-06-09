@@ -22,7 +22,15 @@ declare class Model extends DatabaseConnection {
     find(primaryKey: mysqlKey, fields?: string[]): Promise<any>;
     first(fields?: string[]): Promise<any>;
     private escape;
-    create(data: Object): Promise<any>;
+    create(data: {}): Promise<any>;
+    private getListKey;
+    private getListValueForKey;
+    private sqlConvertKeyAndValue;
+    private sqlToConvertKeyAndValue;
+    firstOrCreate(find: {}, create: {}): Promise<{
+        data: any;
+        type?: string | undefined;
+    }>;
     update(data: Object): Promise<any>;
     private kiemTraDieuKien;
     where(field: string, condition: mysqlValue, value?: mysqlValue): this;

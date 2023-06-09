@@ -1,4 +1,4 @@
-import mysql from "mysql2";
+import mysql, { ResultSetHeader } from "mysql2";
 import { mysqlResult, mysqlValue, mysqlKey } from "./types/db.type";
 
 let connectConfig: mysql.ConnectionOptions;
@@ -121,7 +121,7 @@ class Model extends DatabaseConnection {
         return `\`${data}\``;
     }
 
-    public async create(data: Object) {
+    public async create(data: {}) {
         this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
         const keys: string[] = Object.keys(data);
 
@@ -134,10 +134,50 @@ class Model extends DatabaseConnection {
         });
 
         return await this.execute()
-            .then(async _ => {
-                return true;
-            })
-            .catch((error) => error);
+        .then((data: any) => data as mysql.ResultSetHeader)
+        .then(async (result: mysql.ResultSetHeader) => {
+            if(result.affectedRows != 0 && result.insertId != 0) {
+                this.where("id", result.insertId);
+                for(const _key of keys) this.where(_key, data[_key as keyof typeof data]);
+
+                return await this.first();
+            }
+
+            return true;
+        })
+        .catch((error) => error);
+    }
+
+    private getListKey(data: {}): string[] {
+        const keys: string[] = Object.keys(data);
+        return keys;
+    }
+
+    private getListValueForKey(keys: string[], obj: {}) {
+        return keys.map((key: string) => obj[key as keyof typeof obj]);
+    }
+
+    private sqlConvertKeyAndValue(find: {}): string {
+        const keys: string[] = this.getListKey(find);
+        // const values: mysqlValue[] = this.getListValueForKey(keys, find);
+        for(const key of keys) {
+            this.where(key, find[key as keyof typeof find])
+        }
+        return this.sql;
+    }
+
+    private sqlToConvertKeyAndValue(find: {}): string {
+        const temp: string = this.sql;
+        const sql = this.sqlConvertKeyAndValue(find);
+        this.sql = temp;
+        return sql;
+    }
+
+    public async firstOrCreate(find: {}, create: {}) {
+        this.sqlConvertKeyAndValue(find);
+        const findFirstData = await this.first();
+        let result: {type?: string, data?: any} = { type: "create" };
+        return !findFirstData ? {...result, data: await this.create({...create, ...find})} : {type: "first", data: findFirstData};
     }
 
     public async update(data: Object) {
@@ -152,8 +192,8 @@ class Model extends DatabaseConnection {
 
         this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
         return await this.execute()
-            .then((data) => data)
-            .catch((error) => error);
+        .then((data) => data)
+        .catch((error) => error);
     }
 
     private kiemTraDieuKien(sql: string, dieuKien: string = "AND"): string {
@@ -184,8 +224,6 @@ class Model extends DatabaseConnection {
         this.connection.end();
         return this.sql;
     }
-
-
 
     public getQueryNotConnection(): string {
         return this.sql;
