@@ -6,6 +6,7 @@ declare class DatabaseConnection {
 }
 declare class Model extends DatabaseConnection {
     sql: string;
+    private sqlDefault;
     protected tableName: string;
     private listValue;
     protected primaryKey: mysqlKey;

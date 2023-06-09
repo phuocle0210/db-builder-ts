@@ -26,7 +26,8 @@ class Model extends DatabaseConnection {
         this.listMethodChildren = [];
         this.primaryKey = "id";
         this.tableName = tableName;
-        this.sql = `SELECT * FROM ${this.tableName}`;
+        this.sqlDefault = `SELECT * FROM ${this.tableName}`;
+        this.sql = this.sqlDefault;
         this.listValue = [];
         this.hidden = [];
     }
@@ -56,6 +57,7 @@ class Model extends DatabaseConnection {
                 this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result) => {
                     this.connection.end();
                     this.listValue = [];
+                    this.sql = this.sqlDefault;
                     if (error)
                         rej(error);
                     res(result);

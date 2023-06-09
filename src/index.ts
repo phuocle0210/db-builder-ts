@@ -5,7 +5,7 @@ let connectConfig: mysql.ConnectionOptions;
 
 class DatabaseConnection {
     protected connection: mysql.Connection;
-    
+
     constructor(config: mysql.ConnectionOptions = {}) {
         this.connection = mysql.createConnection(connectConfig);
     }
@@ -13,6 +13,7 @@ class DatabaseConnection {
 
 class Model extends DatabaseConnection {
     public sql: string;
+    private sqlDefault: string;
     protected tableName: string;
     private listValue: mysqlValue[];
     protected primaryKey: mysqlKey;
@@ -27,7 +28,10 @@ class Model extends DatabaseConnection {
         this.listMethodChildren = [];
         this.primaryKey = "id";
         this.tableName = tableName;
-        this.sql = `SELECT * FROM ${this.tableName}`;
+
+        this.sqlDefault = `SELECT * FROM ${this.tableName}`;
+        this.sql = this.sqlDefault;
+        
         this.listValue = [];
         this.hidden = [];
     }
@@ -35,7 +39,7 @@ class Model extends DatabaseConnection {
     private ping() {
         try {
             this.connection.query("select 1")
-        } catch(_) {
+        } catch (_) {
             return false;
         }
 
@@ -43,7 +47,7 @@ class Model extends DatabaseConnection {
     }
 
     public end() {
-        if(this.ping()) {
+        if (this.ping()) {
             this.connection.end();
         }
     }
@@ -53,7 +57,7 @@ class Model extends DatabaseConnection {
     }
 
     private async execute(sql: string = ""): Promise<mysqlResult> {
-        if(!this.ping()) {
+        if (!this.ping()) {
             this.connection = mysql.createConnection(connectConfig);
         }
 
@@ -61,44 +65,45 @@ class Model extends DatabaseConnection {
             this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result) => {
                 this.connection.end();
                 this.listValue = [];
+                this.sql = this.sqlDefault;
 
-                if(error)
+                if (error)
                     rej(error);
-                
+
                 res(result);
             });
         });
     }
 
     public async get(fields: string[] = []): Promise<mysqlResult> {
-        if(fields.length > 0) 
+        if (fields.length > 0)
             this.sql = this.sql.replace("*", fields.join(", "));
 
-        if((this instanceof Model) && this.constructor.name != "Model") {
+        if ((this instanceof Model) && this.constructor.name != "Model") {
             // console.log(this.constructor.name)
             const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
             // console.log(listMethods);
             this.listMethodChildren = listMethods;
         }
-        
+
         // console.log(this[listMethods[0] as keyof this]);
 
         return await this.execute()
-        .then(async (data: any) => {
-            this.result = JSON.stringify(data);
+            .then(async (data: any) => {
+                this.result = JSON.stringify(data);
 
-            if(this.listMethodChildren.length > 0) {
-                for(let i: number = 0; i < data.length; i++) {
-                    for(let j: number = 0; j < this.listMethodChildren.length; j++) {
-                        data[i][this.listMethodChildren[j]] = (this[this.listMethodChildren[j] as keyof this] as Function)()({...data[i]});
+                if (this.listMethodChildren.length > 0) {
+                    for (let i: number = 0; i < data.length; i++) {
+                        for (let j: number = 0; j < this.listMethodChildren.length; j++) {
+                            data[i][this.listMethodChildren[j]] = (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
+                        }
                     }
+                    return data;
                 }
-                return data;
-            }
 
-            return data;
-        })
-        .catch((error: mysql.QueryError) => error);
+                return data;
+            })
+            .catch((error: mysql.QueryError) => error);
     }
 
     public async find(primaryKey: mysqlKey, fields: string[] = []) {
@@ -108,8 +113,8 @@ class Model extends DatabaseConnection {
 
     public async first(fields: string[] = []) {
         return await this.get(fields)
-        .then((data: any) => data[0])
-        .catch(_ => null);
+            .then((data: any) => data[0])
+            .catch(_ => null);
     }
 
     private escape(data: string): string {
@@ -119,25 +124,25 @@ class Model extends DatabaseConnection {
     public async create(data: Object) {
         this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
         const keys: string[] = Object.keys(data);
-    
-        this.sql = this.sql 
-        .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
-        .replace("__VALUES__", Array(keys.length).fill("?").join(", "));
+
+        this.sql = this.sql
+            .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
+            .replace("__VALUES__", Array(keys.length).fill("?").join(", "));
 
         this.listValue = keys.map((key: string) => {
             return data[key as keyof Object] as keyof mysqlValue;
         });
 
         return await this.execute()
-        .then(async _ => {
-            return true;
-        })
-        .catch((error) => error);
+            .then(async _ => {
+                return true;
+            })
+            .catch((error) => error);
     }
 
     public async update(data: Object) {
         this.sql = this.sql
-        .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
+            .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
 
         const keys: string[] = Object.keys(data);
 
@@ -147,8 +152,8 @@ class Model extends DatabaseConnection {
 
         this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
         return await this.execute()
-        .then((data) => data)
-        .catch((error) => error);
+            .then((data) => data)
+            .catch((error) => error);
     }
 
     private kiemTraDieuKien(sql: string, dieuKien: string = "AND"): string {
@@ -157,7 +162,7 @@ class Model extends DatabaseConnection {
 
     public where(field: string, condition: mysqlValue, value: mysqlValue = undefined) {
         const dieuKien: string = this.kiemTraDieuKien(this.sql);
-        const checkCondition: boolean = value !== undefined && typeof(condition) === "string";
+        const checkCondition: boolean = value !== undefined && typeof (condition) === "string";
 
         this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
         this.listValue.push(checkCondition ? value : condition);
@@ -167,7 +172,7 @@ class Model extends DatabaseConnection {
 
     public orWhere(field: string, condition: mysqlValue, value: mysqlValue = undefined) {
         const dieuKien: string = this.kiemTraDieuKien(this.sql, "OR");
-        const checkCondition: boolean = value !== undefined && typeof(condition) === "string";
+        const checkCondition: boolean = value !== undefined && typeof (condition) === "string";
 
         this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
         this.listValue.push(checkCondition ? value : condition);
