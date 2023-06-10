@@ -176,8 +176,8 @@ class Model extends DatabaseConnection {
     public async firstOrCreate(find: {}, create: {}) {
         this.sqlConvertKeyAndValue(find);
         const findFirstData = await this.first();
-        let result: {type?: string, data?: any} = { type: "create" };
-        return !findFirstData ? {...result, data: await this.create({...create, ...find})} : {type: "first", data: findFirstData};
+        let result: {isCreated: boolean, data?: any} = { isCreated: false };
+        return !findFirstData ? {...result, data: await this.create({...create, ...find})} : {isCreated: true, data: findFirstData};
     }
 
     public async update(data: Object) {
