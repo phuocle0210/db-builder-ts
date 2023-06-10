@@ -29,7 +29,7 @@ declare class Model extends DatabaseConnection {
     private sqlToConvertKeyAndValue;
     firstOrCreate(find: {}, create: {}): Promise<{
         data: any;
-        type?: string | undefined;
+        isCreated: boolean;
     }>;
     update(data: Object): Promise<any>;
     private kiemTraDieuKien;

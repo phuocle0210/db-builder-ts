@@ -157,8 +157,8 @@ class Model extends DatabaseConnection {
         return __awaiter(this, void 0, void 0, function* () {
             this.sqlConvertKeyAndValue(find);
             const findFirstData = yield this.first();
-            let result = { type: "create" };
-            return !findFirstData ? Object.assign(Object.assign({}, result), { data: yield this.create(Object.assign(Object.assign({}, create), find)) }) : { type: "first", data: findFirstData };
+            let result = { isCreated: false };
+            return !findFirstData ? Object.assign(Object.assign({}, result), { data: yield this.create(Object.assign(Object.assign({}, create), find)) }) : { isCreated: true, data: findFirstData };
         });
     }
     update(data) {
