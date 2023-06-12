@@ -209,8 +209,9 @@ class Model extends DatabaseConnection {
         return (x) => {
             // const q = tableName.where(primaryKey, x[foreign]);
             // q.end();
-            const _sql = `SELECT ${tableName.getTableName()}.* FROM ${this.tableName}, ${tableName}
-            WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
+            const tableNameRelationship = tableName.getTableName();
+            const _sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
+            WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
             return () => this.execute(_sql).then((data) => data[0]); //return this.execute(_sql).then((data: any) => data[0]);
         };
