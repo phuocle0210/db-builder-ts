@@ -14,6 +14,7 @@ declare class Model extends DatabaseConnection {
     private listMethodChildren;
     private result;
     constructor(tableName: string);
+    getTableName(): string;
     private ping;
     end(): void;
     getResult(): any;
@@ -37,7 +38,7 @@ declare class Model extends DatabaseConnection {
     orWhere(field: string, condition: mysqlValue, value?: mysqlValue): this;
     getQuery(): string;
     getQueryNotConnection(): string;
-    hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
+    hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
     hasMany(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
 }
 declare class DB {

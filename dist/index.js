@@ -31,6 +31,9 @@ class Model extends DatabaseConnection {
         this.listValue = [];
         this.hidden = [];
     }
+    getTableName() {
+        return this.tableName;
+    }
     ping() {
         try {
             this.connection.query("select 1");
@@ -82,7 +85,8 @@ class Model extends DatabaseConnection {
                 if (this.listMethodChildren.length > 0) {
                     for (let i = 0; i < data.length; i++) {
                         for (let j = 0; j < this.listMethodChildren.length; j++) {
-                            data[i][this.listMethodChildren[j]] = this[this.listMethodChildren[j]]()(Object.assign({}, data[i]));
+                            data[i][this.listMethodChildren[j]] =
+                                this[this.listMethodChildren[j]]()(Object.assign({}, data[i]));
                         }
                     }
                     return data;
@@ -203,12 +207,12 @@ class Model extends DatabaseConnection {
     }
     hasOne(tableName, primaryKey, foreign) {
         return (x) => {
-            const q = tableName.where(primaryKey, x[foreign]);
-            q.end();
-            // const _sql: string = `SELECT ${tableName}.* FROM ${this.tableName}, ${tableName}
-            // WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
-            // AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
-            return () => q.first(); //return this.execute(_sql).then((data: any) => data[0]);
+            // const q = tableName.where(primaryKey, x[foreign]);
+            // q.end();
+            const _sql = `SELECT ${tableName.getTableName()}.* FROM ${this.tableName}, ${tableName}
+            WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
+            AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
+            return () => this.execute(_sql).then((data) => data[0]); //return this.execute(_sql).then((data: any) => data[0]);
         };
     }
     hasMany(tableName, primaryKey, foreign) {

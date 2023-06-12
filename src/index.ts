@@ -36,6 +36,10 @@ class Model extends DatabaseConnection {
         this.hidden = [];
     }
 
+    public getTableName(): string {
+        return this.tableName;
+    }
+
     private ping() {
         try {
             this.connection.query("select 1")
@@ -95,7 +99,8 @@ class Model extends DatabaseConnection {
                 if (this.listMethodChildren.length > 0) {
                     for (let i: number = 0; i < data.length; i++) {
                         for (let j: number = 0; j < this.listMethodChildren.length; j++) {
-                            data[i][this.listMethodChildren[j]] = (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
+                            data[i][this.listMethodChildren[j]] = 
+                            (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
                         }
                     }
                     return data;
@@ -231,13 +236,13 @@ class Model extends DatabaseConnection {
 
     public hasOne(tableName: any, primaryKey: string, foreign: string) {
         return (x: any) => {
-            const q = tableName.where(primaryKey, x[foreign]);
-            q.end();
-            // const _sql: string = `SELECT ${tableName}.* FROM ${this.tableName}, ${tableName}
-            // WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
-            // AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
+            // const q = tableName.where(primaryKey, x[foreign]);
+            // q.end();
+            const _sql: string = `SELECT ${tableName.getTableName()}.* FROM ${this.tableName}, ${tableName}
+            WHERE ${this.tableName}.${foreign} = ${tableName}.${primaryKey}
+            AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
 
-            return () => q.first(); //return this.execute(_sql).then((data: any) => data[0]);
+            return () => this.execute(_sql).then((data: any) => data[0]); //return this.execute(_sql).then((data: any) => data[0]);
         }
     }
 
