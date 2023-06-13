@@ -51,9 +51,7 @@ class Model extends DatabaseConnection {
     }
 
     public end() {
-        if (this.ping()) {
-            this.connection.end();
-        }
+        this.ping() && this.connection.end();
     }
 
     public getResult() {
@@ -68,6 +66,7 @@ class Model extends DatabaseConnection {
         return await new Promise((res, rej) => {
             this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result) => {
                 this.connection.end();
+
                 this.listValue = [];
                 this.sql = this.sqlDefault;
 
@@ -118,7 +117,9 @@ class Model extends DatabaseConnection {
 
     public async first(fields: string[] = []) {
         return await this.get(fields)
-            .then((data: any) => data[0])
+            .then((data: any) => {
+                return data[0];
+            })
             .catch(_ => null);
     }
 
@@ -144,8 +145,8 @@ class Model extends DatabaseConnection {
             if(result.affectedRows != 0 && result.insertId != 0) {
                 this.where("id", result.insertId);
                 for(const _key of keys) this.where(_key, data[_key as keyof typeof data]);
-
-                return await this.first();
+                const _result = await this.first();
+                return _result;
             }
 
             return true;
@@ -178,11 +179,14 @@ class Model extends DatabaseConnection {
         return sql;
     }
 
-    public async firstOrCreate(find: {}, create: {}) {
+    public async firstOrCreate(find: {}, create: {} = {}) {
         this.sqlConvertKeyAndValue(find);
         const findFirstData = await this.first();
         let result: {isCreated: boolean, data?: any} = { isCreated: false };
-        return !findFirstData ? {...result, data: await this.create({...create, ...find})} : {isCreated: true, data: findFirstData};
+
+        return !findFirstData ? 
+        {...result, data: (await this.create({...create, ...find})) } : 
+        {isCreated: true, data: findFirstData};
     }
 
     public async update(data: Object) {
@@ -209,7 +213,7 @@ class Model extends DatabaseConnection {
         const dieuKien: string = this.kiemTraDieuKien(this.sql);
         const checkCondition: boolean = value !== undefined && typeof (condition) === "string";
 
-        this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
+        this.sql += ` ${dieuKien} ${this.escape(field)} ${checkCondition ? condition : "="} ?`;
         this.listValue.push(checkCondition ? value : condition);
         // console.log(this.listValue);
         return this;

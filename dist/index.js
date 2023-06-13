@@ -44,9 +44,7 @@ class Model extends DatabaseConnection {
         return true;
     }
     end() {
-        if (this.ping()) {
-            this.connection.end();
-        }
+        this.ping() && this.connection.end();
     }
     getResult() {
         return JSON.parse(this.result);
@@ -105,7 +103,9 @@ class Model extends DatabaseConnection {
     first(fields = []) {
         return __awaiter(this, void 0, void 0, function* () {
             return yield this.get(fields)
-                .then((data) => data[0])
+                .then((data) => {
+                return data[0];
+            })
                 .catch(_ => null);
         });
     }
@@ -129,7 +129,8 @@ class Model extends DatabaseConnection {
                     this.where("id", result.insertId);
                     for (const _key of keys)
                         this.where(_key, data[_key]);
-                    return yield this.first();
+                    const _result = yield this.first();
+                    return _result;
                 }
                 return true;
             }))
@@ -157,12 +158,13 @@ class Model extends DatabaseConnection {
         this.sql = temp;
         return sql;
     }
-    firstOrCreate(find, create) {
+    firstOrCreate(find, create = {}) {
         return __awaiter(this, void 0, void 0, function* () {
             this.sqlConvertKeyAndValue(find);
             const findFirstData = yield this.first();
             let result = { isCreated: false };
-            return !findFirstData ? Object.assign(Object.assign({}, result), { data: yield this.create(Object.assign(Object.assign({}, create), find)) }) : { isCreated: true, data: findFirstData };
+            return !findFirstData ? Object.assign(Object.assign({}, result), { data: (yield this.create(Object.assign(Object.assign({}, create), find))) }) :
+                { isCreated: true, data: findFirstData };
         });
     }
     update(data) {
@@ -185,7 +187,7 @@ class Model extends DatabaseConnection {
     where(field, condition, value = undefined) {
         const dieuKien = this.kiemTraDieuKien(this.sql);
         const checkCondition = value !== undefined && typeof (condition) === "string";
-        this.sql += ` ${dieuKien} ${field} ${checkCondition ? condition : "="} ?`;
+        this.sql += ` ${dieuKien} ${this.escape(field)} ${checkCondition ? condition : "="} ?`;
         this.listValue.push(checkCondition ? value : condition);
         // console.log(this.listValue);
         return this;

@@ -35,11 +35,14 @@ class Chapter extends Model {
     // const result: any = await m.get();
     // console.log(await result[0].chapters());
 
-    console.log(await DB.table("users").firstOrCreate({
-        name: "LeVanPhuoc",
-        username: "conSoLong"
+    console.log(await DB.table("chapters").firstOrCreate({
+        manga_id: 59,
+        title: "Chương 1",
+        url: "https://truyenqqne.com/truyen-tranh/dai-su-phu-ha-son-11831-chap-1.html"
     }, {
-        password: "99999a"  
+        order: 1,
+        views: 0,
+        status: 1
     }));
 
     // console.log((await DB.table("manga").first() as any).id);

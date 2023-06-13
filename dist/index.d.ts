@@ -28,7 +28,7 @@ declare class Model extends DatabaseConnection {
     private getListValueForKey;
     private sqlConvertKeyAndValue;
     private sqlToConvertKeyAndValue;
-    firstOrCreate(find: {}, create: {}): Promise<{
+    firstOrCreate(find: {}, create?: {}): Promise<{
         data: any;
         isCreated: boolean;
     }>;
