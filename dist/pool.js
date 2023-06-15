@@ -28,17 +28,26 @@ class Model {
         return __awaiter(this, void 0, void 0, function* () {
             return yield new Promise((res, rej) => {
                 connectConfig.getConnection((err, connection) => {
-                    if (err)
+                    if (err) {
+                        console.log("Không thể kết nối");
                         rej("Không thể kết nối");
-                    connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
-                        this.listValue = [];
-                        this.sql = this.sqlDefault;
-                        connection.destroy();
-                        if (error)
-                            rej(err);
-                        // console.log(results);
-                        res(results);
-                    });
+                    }
+                    try {
+                        connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
+                            this.listValue = [];
+                            this.sql = this.sqlDefault;
+                            if (error)
+                                rej(err);
+                            // console.log(results);
+                            res(results);
+                        });
+                    }
+                    catch (ex) {
+                        rej(ex);
+                    }
+                    finally {
+                        connection.release();
+                    }
                 });
             });
         });
