@@ -1,33 +1,30 @@
 import mysql, { ResultSetHeader } from "mysql2";
-import { mysqlResult, mysqlValue, mysqlKey } from "./types/db.type";
+import { mysqlResult, mysqlValue, mysqlKey, MysqlResults, IModelResult } from "./types/db.type";
 
-let connectConfig: mysql.ConnectionOptions;
+type ConnectType = mysql.Connection | mysql.Pool;
 
-class DatabaseConnection {
-    protected connection: mysql.Connection;
+let connection: ConnectType;
+let connectionConfig: mysql.ConnectionOptions;
 
-    constructor(config: mysql.ConnectionOptions = {}) {
-        this.connection = mysql.createConnection(connectConfig);
-    }
-}
-
-class Model extends DatabaseConnection {
+export class Model {
     public sql: string;
-    private sqlDefault: string;
+    protected sqlDefault: string;
     protected tableName: string;
-    private listValue: mysqlValue[];
-    protected primaryKey: mysqlKey;
+    protected listValue: mysqlValue[];
+    public primaryKey: string;
     protected hidden: string[];
-    private listMethodChildren: string[];
-    private result: any;
+    protected listMethodChildren: string[];
+    protected connection: ConnectType;
+    protected limit: number;
+    protected order: string;
 
     constructor(tableName: string) {
-        super();
-
-        this.result = null;
         this.listMethodChildren = [];
         this.primaryKey = "id";
         this.tableName = tableName;
+        this.connection = connection;
+        this.limit = 0;
+        this.order = "";
 
         this.sqlDefault = `SELECT * FROM ${this.tableName}`;
         this.sql = this.sqlDefault;
@@ -49,26 +46,87 @@ class Model extends DatabaseConnection {
 
         return true;
     }
+    
 
     public end() {
         this.ping() && this.connection.end();
     }
 
-    public getResult() {
-        return JSON.parse(this.result);
+    public static response(data: MysqlResults) {
+        return JSON.parse(JSON.stringify(data));
     }
 
-    private async execute(sql: string = ""): Promise<mysqlResult> {
-        if (!this.ping()) {
-            this.connection = mysql.createConnection(connectConfig);
+    public showResult(results: MysqlResults) {
+        let showResult: IModelResult = {data: results};
+
+        if(this.hidden.length == 0 || showResult.data === undefined) return showResult;
+
+        let hidden: typeof results;
+        type ResultType = keyof typeof results;
+
+        if(Array.isArray(showResult.data)) {
+            hidden = [];
+
+            hidden = showResult.data.map(result => {
+                const x: typeof showResult.data[0] = {};
+                for(const key of this.hidden) {
+                    x[key as ResultType] = result[key as ResultType];
+                    delete result[key as ResultType];
+                }
+                return x;
+            });
+
+            return {...showResult, hidden};
         }
 
+        hidden = {};
+
+        for(const key of this.hidden) {
+            type ResultType = keyof typeof results;
+            hidden[key as ResultType] = showResult.data[key as ResultType];
+            delete showResult.data[key as ResultType];
+        }
+
+        return {...showResult, hidden};
+    }
+
+    public take(limit: number): this {
+        this.limit = limit;
+        return this;
+    }
+
+    public orderBy(field: string, orderBy: "ASC" | "DESC" = "ASC"): this {
+        this.order = ` ORDER BY ${this.escape(field)} ${orderBy}`;
+        return this;
+    }
+
+    public orderByDesc(field: string): this {
+        return this.orderBy(field, "DESC");
+    }
+
+    public orderByAsc(field: string) {
+        return this.orderBy(field);
+    }
+
+    protected async execute(sql: string = ""): Promise<mysqlResult> {
+        if (!this.ping()) {
+            this.connection = mysql.createConnection(connectionConfig);
+        }
+
+        this.sql += this.order;
+
+        if(this.limit != 0)
+            this.sql += ` LIMIT ${this.limit}`;
+
         return await new Promise((res, rej) => {
-            this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result) => {
+            console.log(this.sql);
+            this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
                 this.connection.end();
 
                 this.listValue = [];
                 this.sql = this.sqlDefault;
+                this.limit = 0;
+                this.order = "";
 
                 if (error)
                     rej(error);
@@ -78,11 +136,12 @@ class Model extends DatabaseConnection {
         });
     }
 
-    public async get(fields: string[] = []): Promise<mysqlResult> {
+    public async get(fields: string[] = []): Promise<IModelResult> {
         if (fields.length > 0)
             this.sql = this.sql.replace("*", fields.join(", "));
 
-        if ((this instanceof Model) && this.constructor.name != "Model") {
+        const targetName: string = this.constructor.name;
+        if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
             // console.log(this.constructor.name)
             const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
             // console.log(listMethods);
@@ -93,34 +152,42 @@ class Model extends DatabaseConnection {
 
         return await this.execute()
             .then(async (data: any) => {
-                this.result = JSON.stringify(data);
-
                 if (this.listMethodChildren.length > 0) {
-                    for (let i: number = 0; i < data.length; i++) {
-                        for (let j: number = 0; j < this.listMethodChildren.length; j++) {
-                            data[i][this.listMethodChildren[j]] = 
-                            (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
-                        }
-                    }
-                    return data;
+                    // for (let i: number = 0; i < data.length; i++) {
+                    //     for (let j: number = 0; j < this.listMethodChildren.length; j++) {
+                    //         data[i][this.listMethodChildren[j]] = 
+                    //         (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
+                    //     }
+                    // }
+
+                    for(const _data of data)
+                        for(const methodChild of this.listMethodChildren as string[])
+                            _data[methodChild] = (this[methodChild as keyof this] as Function)()({ ..._data }); 
                 }
 
-                return data;
+                // console.log(this.showResult(data));
+                return this.showResult(data);
             })
-            .catch((error: mysql.QueryError) => error);
+            .catch((error: mysql.QueryError) => {
+                console.log(error);
+                return { data:[] }
+            });
     }
 
     public async find(primaryKey: mysqlKey, fields: string[] = []) {
-        this.where("id", "=", primaryKey);
-        return await this.get(fields).then((data: any) => data);
+        this.where(this.primaryKey, "=", primaryKey);
+        return await this.first(fields);
     }
 
-    public async first(fields: string[] = []) {
+    public async first(fields: string[] = []): Promise<IModelResult> {
         return await this.get(fields)
-            .then((data: any) => {
-                return data[0];
-            })
-            .catch(_ => null);
+        .then(data => data as IModelResult)
+        .then(({ data, hidden}) => {
+            data = Array.isArray(data) && data.length > 0 ? data[0] : data;
+            hidden = Array.isArray(hidden) && hidden.length > 0 ? hidden[0] : hidden;
+            return {data, hidden};
+        })
+        .catch(_ => ({data: {}, hidden: undefined }));
     }
 
     private escape(data: string): string {
@@ -129,19 +196,28 @@ class Model extends DatabaseConnection {
 
     public async create(data: {}) {
         this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
-        const keys: string[] = Object.keys(data);
+        
+        const isArray: boolean = Array.isArray(data);
+        type dataType = keyof typeof data;
+
+        const keys: string[] = Object.keys(isArray ? data[0 as dataType] : data);
+
+        const fillObject: string[] = Array(keys.length).fill("?");
+        const fillResult: string[] = !isArray ? fillObject : Array((data as typeof Array).length).fill(`(${fillObject.join(", ")})`);
+
+        if(isArray) {
+            (data as []).forEach((item) => keys.forEach((key) => this.listValue.push(item[key])));
+        } else {
+            this.listValue = keys.map(key => data[key as dataType]);
+        }
 
         this.sql = this.sql
             .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
-            .replace("__VALUES__", Array(keys.length).fill("?").join(", "));
+            .replace(isArray ? "(__VALUES__)" : "__VALUES__", fillResult.join(", "));
 
-        this.listValue = keys.map((key: string) => {
-            return data[key as keyof Object] as keyof mysqlValue;
-        });
-
-        return await this.execute()
-        .then((data: any) => data as mysql.ResultSetHeader)
-        .then(async (result: mysql.ResultSetHeader) => {
+        return this.execute()
+        .then((data: any) => data as ResultSetHeader)
+        .then(async (result: ResultSetHeader) => {
             if(result.affectedRows != 0 && result.insertId != 0) {
                 this.where("id", result.insertId);
                 for(const _key of keys) this.where(_key, data[_key as keyof typeof data]);
@@ -151,19 +227,21 @@ class Model extends DatabaseConnection {
 
             return true;
         })
-        .catch((error) => error);
+        .catch((err) => {
+            console.log(err);
+        })
     }
 
-    private getListKey(data: {}): string[] {
+    protected getListKey(data: {}): string[] {
         const keys: string[] = Object.keys(data);
         return keys;
     }
 
-    private getListValueForKey(keys: string[], obj: {}) {
+    protected getListValueForKey(keys: string[], obj: {}) {
         return keys.map((key: string) => obj[key as keyof typeof obj]);
     }
 
-    private sqlConvertKeyAndValue(find: {}): string {
+    protected sqlConvertKeyAndValue(find: {}): string {
         const keys: string[] = this.getListKey(find);
         // const values: mysqlValue[] = this.getListValueForKey(keys, find);
         for(const key of keys) {
@@ -172,7 +250,7 @@ class Model extends DatabaseConnection {
         return this.sql;
     }
 
-    private sqlToConvertKeyAndValue(find: {}): string {
+    protected sqlToConvertKeyAndValue(find: {}): string {
         const temp: string = this.sql;
         const sql = this.sqlConvertKeyAndValue(find);
         this.sql = temp;
@@ -184,7 +262,7 @@ class Model extends DatabaseConnection {
         const findFirstData = await this.first();
         let result: {isCreated: boolean, data?: any} = { isCreated: false };
 
-        return !findFirstData ? 
+        return !findFirstData?.data || Object.keys(findFirstData.data).length == 0 ? 
         {...result, data: (await this.create({...create, ...find})) } : 
         {isCreated: true, data: findFirstData};
     }
@@ -238,7 +316,7 @@ class Model extends DatabaseConnection {
         return this.sql;
     }
 
-    public hasOne(tableName: any, primaryKey: string, foreign: string) {
+    protected hasOne(tableName: any, primaryKey: string, foreign: string) {
         return (x: any) => {
             // const q = tableName.where(primaryKey, x[foreign]);
             // q.end();
@@ -247,15 +325,45 @@ class Model extends DatabaseConnection {
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
 
-            return () => this.execute(_sql).then((data: any) => data[0]); //return this.execute(_sql).then((data: any) => data[0]);
+            return () => this.execute(_sql).then((data: any) => tableName.showResult(data[0])); //return this.execute(_sql).then((data: any) => data[0]);
         }
     }
 
-    public hasMany(tableName: any, primaryKey: string, foreign: string) {
+    protected hasMany(tableName: any, primaryKey: string, foreign: string) {
         return (x: any) => {
-            const q = tableName.where(primaryKey, x[foreign]);
-            q.end();
-            return () => q.get();
+            const tableNameRelationship: string = tableName.getTableName();
+
+            tableName.sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
+            WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
+            AND ${this.tableName}.${foreign} = ${x[foreign]}`;
+
+            return () => {
+                // console.log("da thuc thi", _sql, x);
+                return tableName.get();
+            };
+        }
+    }
+
+    //foreignKeyone la dinh nghia khoa ngoai cua doi tuong dang dinh nghia
+    //foreignKeyTwo la dinh nghia khoa ngoai cua doi tuong muon join
+    protected belongsToMany(target: any, tableName: string, foreignKeyOne: string, foreignKeyTwo: string) {
+        return (x: any) => {
+            /* 
+            SELECT m.name, c.* FROM `mangas` as m, `categories` as c, `categories_manga` cm 
+            WHERE m.id =  cm.manga_id
+            AND c.id = cm.category_id;
+            */
+
+            const tableNameTarget = target.getTableName();
+            target.sql = `SELECT t1.* 
+            FROM ${tableNameTarget} as t1, ${this.tableName} as t2, ${tableName} as t3
+            WHERE t2.${this.primaryKey} = t3.${foreignKeyOne}
+            AND t2.${this.primaryKey} = ${x.id}
+            AND t1.${target.primaryKey} = t3.${foreignKeyTwo}`;
+
+            // console.log(target.sql);
+
+            return () => target.get();
         }
     }
 }
@@ -269,7 +377,8 @@ class DB {
 
 export default class DatabaseBuilder {
     public static createConnection(config: mysql.ConnectionOptions) {
-        connectConfig = config;
+        connectionConfig = config;
+        connection = mysql.createConnection(connectionConfig);
 
         return {
             DB,
