@@ -198,37 +198,44 @@ let connectConfig;
 class ModelPool extends index_1.Model {
     constructor(tableName) {
         super(tableName);
+        this.enableLoop = false;
     }
-    execute(sql = "") {
+    execute(sql = "", index = 0) {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield new Promise((res, rej) => {
-                connectConfig.getConnection((err, connection) => {
-                    if (err) {
-                        console.log("Không thể kết nối");
-                        rej("Không thể kết nối");
-                    }
-                    try {
-                        this.sql += this.order;
-                        if (this.limit != 0)
-                            this.sql += ` LIMIT ${this.limit}`;
-                        connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
-                            this.listValue = [];
-                            this.sql = this.sqlDefault;
-                            this.limit = 0;
-                            this.order = "";
-                            if (error)
-                                rej(err);
-                            res(results);
-                        });
-                    }
-                    catch (ex) {
-                        rej(ex);
-                    }
-                    finally {
-                        connection.release();
-                    }
+            try {
+                return yield new Promise((res, rej) => {
+                    connectConfig.getConnection((err, connection) => {
+                        if (err) {
+                            console.log("Không thể kết nối");
+                            rej("Không thể kết nối");
+                        }
+                        try {
+                            this.sql += this.order;
+                            if (this.limit != 0)
+                                this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
+                            connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
+                                this.listValue = [];
+                                this.sql = this.sqlDefault;
+                                this.limit = 0;
+                                this.order = "";
+                                if (error)
+                                    rej(err);
+                                res(results);
+                            });
+                            connection.release();
+                        }
+                        catch (ex) {
+                            rej(ex);
+                        }
+                    });
                 });
-            });
+            }
+            catch (ex) {
+                if (this.enableLoop && index <= 5) {
+                    return this.execute(sql, ++index);
+                }
+                return ex;
+            }
         });
     }
     destroy() {

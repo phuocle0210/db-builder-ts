@@ -14,6 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Model = void 0;
 const mysql2_1 = __importDefault(require("mysql2"));
+const moment_1 = __importDefault(require("moment"));
 let connection;
 let connectionConfig;
 class Model {
@@ -23,6 +24,7 @@ class Model {
         this.tableName = tableName;
         this.connection = connection;
         this.limit = 0;
+        this.offset = 0;
         this.order = "";
         this.sqlDefault = `SELECT * FROM ${this.tableName}`;
         this.sql = this.sqlDefault;
@@ -85,6 +87,24 @@ class Model {
     orderByAsc(field) {
         return this.orderBy(field);
     }
+    setOffSet(skip) {
+        this.offset = skip;
+        return this;
+    }
+    paginate(limit, page) {
+        this.take(limit);
+        page = page - 1 >= 0 ? (page - 1) : 0;
+        this.offset = (page * limit);
+        return this.execute()
+            .then((data) => this.showResult(data))
+            .then((data) => {
+            return Object.assign(Object.assign({}, data), { current_page: (page + 1), total_page: data.data.length });
+        });
+    }
+    updateTimeStamp(field = "updated_at") {
+        return __awaiter(this, void 0, void 0, function* () {
+        });
+    }
     execute(sql = "") {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.ping()) {
@@ -92,9 +112,8 @@ class Model {
             }
             this.sql += this.order;
             if (this.limit != 0)
-                this.sql += ` LIMIT ${this.limit}`;
+                this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
             return yield new Promise((res, rej) => {
-                console.log(this.sql);
                 this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
                     this.connection.end();
                     this.listValue = [];
@@ -107,6 +126,16 @@ class Model {
                 });
             });
         });
+    }
+    save(model) {
+        return () => {
+            if ("updated_at" in this && "created_at" in this) {
+                const format = "YYYY-MM-DD HH:mm:ss";
+                this["created_at"] = (0, moment_1.default)(this["created_at"]).format(format);
+                this["updated_at"] = (0, moment_1.default)(Date.now()).format(format);
+            }
+            return model.where("id", this["id"]).update(this);
+        };
     }
     get(fields = []) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -132,6 +161,9 @@ class Model {
                     for (const _data of data)
                         for (const methodChild of this.listMethodChildren)
                             _data[methodChild] = this[methodChild]()(Object.assign({}, _data));
+                }
+                for (const d of data) {
+                    d["save"] = this.save.call(d, this);
                 }
                 // console.log(this.showResult(data));
                 return this.showResult(data);
@@ -228,13 +260,19 @@ class Model {
     }
     update(data) {
         return __awaiter(this, void 0, void 0, function* () {
+            data = Model.response(data);
             this.sql = this.sql
                 .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
             const keys = Object.keys(data);
+            const temp = this.listValue.length > 0 ? this.listValue : [];
+            this.listValue = [];
             const _data = keys.map((key) => {
-                return (this.escape(key) + " = " + data[key]);
+                this.listValue.push(data[key]);
+                return (this.escape(key) + " = " + "?");
             });
+            this.listValue = [...this.listValue, ...temp];
             this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
+            console.log(this.sql, this.listValue);
             return yield this.execute()
                 .then((data) => data)
                 .catch((error) => error);

@@ -12,6 +12,7 @@ export declare class Model {
     protected connection: ConnectType;
     protected limit: number;
     protected order: string;
+    protected offset: number;
     constructor(tableName: string);
     getTableName(): string;
     private ping;
@@ -22,7 +23,16 @@ export declare class Model {
     orderBy(field: string, orderBy?: "ASC" | "DESC"): this;
     orderByDesc(field: string): this;
     orderByAsc(field: string): this;
+    setOffSet(skip: number): this;
+    paginate(limit: number, page: number): Promise<{
+        current_page: number;
+        total_page: 0;
+        data: MysqlResults;
+        hidden?: MysqlResults | undefined;
+    }>;
+    updateTimeStamp(field?: string): Promise<void>;
     protected execute(sql?: string): Promise<mysqlResult>;
+    private save;
     get(fields?: string[]): Promise<IModelResult>;
     find(primaryKey: mysqlKey, fields?: string[]): Promise<IModelResult>;
     first(fields?: string[]): Promise<IModelResult>;

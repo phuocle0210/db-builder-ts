@@ -1,8 +1,9 @@
 import mysql from "mysql2";
 import { Model } from "./index";
 declare class ModelPool extends Model {
+    enableLoop: boolean;
     constructor(tableName: string);
-    protected execute(sql?: string): Promise<any>;
+    protected execute(sql?: string, index?: number): Promise<any>;
     destroy(): boolean;
 }
 declare class DB {
