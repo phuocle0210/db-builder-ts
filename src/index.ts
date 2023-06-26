@@ -1,5 +1,6 @@
 import mysql, { ResultSetHeader } from "mysql2";
 import { mysqlResult, mysqlValue, mysqlKey, MysqlResults, IModelResult } from "./types/db.type";
+import moment from "moment";
 
 type ConnectType = mysql.Connection | mysql.Pool;
 
@@ -17,6 +18,7 @@ export class Model {
     protected connection: ConnectType;
     protected limit: number;
     protected order: string;
+    protected offset: number;
 
     constructor(tableName: string) {
         this.listMethodChildren = [];
@@ -24,6 +26,7 @@ export class Model {
         this.tableName = tableName;
         this.connection = connection;
         this.limit = 0;
+        this.offset = 0;
         this.order = "";
 
         this.sqlDefault = `SELECT * FROM ${this.tableName}`;
@@ -108,6 +111,33 @@ export class Model {
         return this.orderBy(field);
     }
 
+    public setOffSet(skip: number) {
+        this.offset = skip;
+        return this;
+    }
+
+    public paginate(limit: number, page: number) {
+        this.take(limit);
+
+        page = page - 1 >= 0 ? (page - 1) : 0;
+
+        this.offset = (page * limit);
+
+        return this.execute()
+        .then((data: mysqlResult) => this.showResult(data))
+        .then((data: IModelResult) => {
+            return {
+                ...data,
+                current_page: (page + 1),
+                total_page: (data.data as []).length
+            }
+        });
+    }
+
+    public async updateTimeStamp(field: string = "updated_at") {
+        
+    }
+
     protected async execute(sql: string = ""): Promise<mysqlResult> {
         if (!this.ping()) {
             this.connection = mysql.createConnection(connectionConfig);
@@ -116,10 +146,9 @@ export class Model {
         this.sql += this.order;
 
         if(this.limit != 0)
-            this.sql += ` LIMIT ${this.limit}`;
+            this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
 
         return await new Promise((res, rej) => {
-            console.log(this.sql);
             this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
                 this.connection.end();
 
@@ -134,6 +163,18 @@ export class Model {
                 res(result);
             });
         });
+    }
+
+    private save(model: this) {
+        return () => {
+            if("updated_at" in this && "created_at" in this) {
+                const format = "YYYY-MM-DD HH:mm:ss";
+                this["created_at"] = moment(this["created_at"] as string).format(format);
+                this["updated_at"] = moment(Date.now()).format(format);
+            }
+
+            return model.where("id", this["id" as keyof this]).update(this);
+        }
     }
 
     public async get(fields: string[] = []): Promise<IModelResult> {
@@ -163,6 +204,10 @@ export class Model {
                     for(const _data of data)
                         for(const methodChild of this.listMethodChildren as string[])
                             _data[methodChild] = (this[methodChild as keyof this] as Function)()({ ..._data }); 
+                }
+
+                for(const d of data) {
+                    d["save"] = this.save.call(d, this);
                 }
 
                 // console.log(this.showResult(data));
@@ -268,16 +313,24 @@ export class Model {
     }
 
     public async update(data: Object) {
+        data = Model.response(data);
         this.sql = this.sql
             .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
 
         const keys: string[] = Object.keys(data);
+        const temp: any[] = this.listValue.length > 0 ? this.listValue : [];
+        this.listValue = [];
 
         const _data: string[] = keys.map((key: any) => {
-            return (this.escape(key) + " = " + data[key as keyof Object]);
+            this.listValue.push(data[key as keyof Object]);
+            return (this.escape(key) + " = " + "?");
         });
 
+        this.listValue = [...this.listValue, ...temp];
+
         this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
+
+        console.log(this.sql, this.listValue);
         return await this.execute()
         .then((data) => data)
         .catch((error) => error);

@@ -2,7 +2,7 @@ import mysql, { ResultSetHeader } from "mysql2";
 import { PoolConnection } from "mysql2/promise";
 import { Model } from "./index";
 
-let connectConfig: mysql.Pool; 
+let connectConfig: mysql.Pool;
 
 // class Model {
 //     protected sql: string;
@@ -23,31 +23,31 @@ let connectConfig: mysql.Pool;
 //         this.promisePool = connectConfig.promise();
 //     }
 
-    // private async execute(sql: string = "") {
-    //     return await new Promise((res, rej) => {
-    //         connectConfig.getConnection((err, connection) => {
-    //             if (err) {
-    //                 console.log("Không thể kết nối");
-    //                 rej("Không thể kết nối");
-    //             }
+// private async execute(sql: string = "") {
+//     return await new Promise((res, rej) => {
+//         connectConfig.getConnection((err, connection) => {
+//             if (err) {
+//                 console.log("Không thể kết nối");
+//                 rej("Không thể kết nối");
+//             }
 
-    //             try {
-    //                 connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
-    //                     this.listValue = [];
-    //                     this.sql = this.sqlDefault;
-    
-    //                     if (error)rej(err);
-    //                     // console.log(results);
-    //                     res(results);
-    //                 });
-    //             } catch(ex) {
-    //                 rej(ex);
-    //             } finally {
-    //                 connection.release();
-    //             }
-    //         });
-    //     });
-    // }
+//             try {
+//                 connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
+//                     this.listValue = [];
+//                     this.sql = this.sqlDefault;
+
+//                     if (error)rej(err);
+//                     // console.log(results);
+//                     res(results);
+//                 });
+//             } catch(ex) {
+//                 rej(ex);
+//             } finally {
+//                 connection.release();
+//             }
+//         });
+//     });
+// }
 
 //     public async get(fields: string[] = []) {
 //         if (fields.length > 0)
@@ -114,7 +114,7 @@ let connectConfig: mysql.Pool;
 
 //     public async create(data: {} | {}[]) {
 //         this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
-        
+
 //         const isArray: boolean = Array.isArray(data);
 //         type dataType = keyof typeof data;
 
@@ -223,47 +223,58 @@ let connectConfig: mysql.Pool;
 // }
 
 class ModelPool extends Model {
+    public enableLoop: boolean;
+
     constructor(tableName: string) {
         super(tableName);
+        this.enableLoop = false;
     }
 
-    protected override async execute(sql: string = ""): Promise<any> {
-        return await new Promise((res, rej) => {
-            connectConfig.getConnection((err, connection) => {
-                if (err) {
-                    console.log("Không thể kết nối");
-                    rej("Không thể kết nối");
-                }
-
-                try {
-                    this.sql += this.order;
-
-                    if(this.limit != 0)
-                        this.sql += ` LIMIT ${this.limit}`;
-
-                    connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
-                        this.listValue = [];
-                        this.sql = this.sqlDefault;
-                        this.limit = 0;
-                        this.order = "";
-
-                        if (error)rej(err);
-                        res(results);
-                    });
-                } catch(ex) {
-                    rej(ex);
-                } finally {
-                    connection.release();
-                }
+    protected override async execute(sql: string = "", index: number = 0): Promise<any> {
+        try {
+            return await new Promise((res, rej) => {
+                connectConfig.getConnection((err, connection) => {
+                    if (err) {
+                        console.log("Không thể kết nối");
+                        rej("Không thể kết nối");
+                    }
+    
+                    try {
+                        this.sql += this.order;
+    
+                        if (this.limit != 0)
+                            this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
+    
+                        connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
+                            this.listValue = [];
+                            this.sql = this.sqlDefault;
+                            this.limit = 0;
+                            this.order = "";
+    
+                            if (error) rej(err);
+                            res(results);
+                        });
+    
+                        connection.release();
+                    } catch (ex) {
+                        rej(ex);
+                    }
+                });
             });
-        });
+        } catch(ex) {
+            if(this.enableLoop && index <= 5) {
+                return this.execute(sql, ++index);
+            }
+
+            return ex;
+        }
     }
 
     public destroy(): boolean {
         try {
             connectConfig.end();
             return true;
-        } catch(_) {
+        } catch (_) {
             return false;
         }
     }
@@ -278,7 +289,7 @@ class DB {
         try {
             connectConfig.end();
             return true;
-        } catch(_) {
+        } catch (_) {
             return false;
         }
     }

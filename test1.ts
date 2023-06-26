@@ -50,12 +50,16 @@ class ChapterDetail extends ModelPool {
 }
 
 (async() => {
-    const manga: Manga = new Manga();
-    const { data, hidden }: IModelResult = await manga
-    .take(5)
-    .orderByDesc("created_at")
-    .get();
+    // const manga: Manga = new Manga();
+    // const { data, hidden }: IModelResult = await manga
+    // .take(5)
+    // .orderByDesc("created_at")
+    // .get();
     
-    console.log(hidden)
-    console.log(await (data as any)[1].categories());
+    // console.log(hidden)
+    // console.log(await (data as any)[1].categories());
+
+    const mangas: any = await DB.table("mangas").get();
+    mangas.data[0].name = "Tổng Tài Đại Nhân Phi Ngã Bất Khả 1";
+    console.log(mangas.data[0].save());
 })();
