@@ -103,6 +103,15 @@ class Model {
     }
     updateTimeStamp(field = "updated_at") {
         return __awaiter(this, void 0, void 0, function* () {
+            try {
+                yield this.update({
+                    [field]: this.getDateNow()
+                });
+                return true;
+            }
+            catch (_) {
+                return false;
+            }
         });
     }
     execute(sql = "") {
@@ -126,6 +135,10 @@ class Model {
                 });
             });
         });
+    }
+    getDateNow() {
+        const format = "YYYY-MM-DD HH:mm:ss";
+        return (0, moment_1.default)(Date.now()).format(format);
     }
     save(model) {
         return () => {
@@ -272,7 +285,7 @@ class Model {
             });
             this.listValue = [...this.listValue, ...temp];
             this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
-            console.log(this.sql, this.listValue);
+            // console.log(this.sql, this.listValue);
             return yield this.execute()
                 .then((data) => data)
                 .catch((error) => error);

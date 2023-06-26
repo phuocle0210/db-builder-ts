@@ -59,7 +59,5 @@ class ChapterDetail extends ModelPool {
     // console.log(hidden)
     // console.log(await (data as any)[1].categories());
 
-    const mangas: any = await DB.table("mangas").get();
-    mangas.data[0].name = "Tổng Tài Đại Nhân Phi Ngã Bất Khả 1";
-    console.log(mangas.data[0].save());
+    await DB.table("users").where("id", 1).updateTimeStamp();
 })();

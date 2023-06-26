@@ -134,8 +134,15 @@ export class Model {
         });
     }
 
-    public async updateTimeStamp(field: string = "updated_at") {
-        
+    public async updateTimeStamp(field: string = "updated_at"): Promise<boolean> {
+        try {
+            await this.update({
+                [field]: this.getDateNow()
+            });
+            return true;
+        } catch(_) {
+            return false;
+        }
     }
 
     protected async execute(sql: string = ""): Promise<mysqlResult> {
@@ -163,6 +170,11 @@ export class Model {
                 res(result);
             });
         });
+    }
+
+    private getDateNow(): string {
+        const format = "YYYY-MM-DD HH:mm:ss";
+        return moment(Date.now()).format(format);
     }
 
     private save(model: this) {
@@ -330,7 +342,7 @@ export class Model {
 
         this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
 
-        console.log(this.sql, this.listValue);
+        // console.log(this.sql, this.listValue);
         return await this.execute()
         .then((data) => data)
         .catch((error) => error);

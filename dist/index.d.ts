@@ -30,8 +30,9 @@ export declare class Model {
         data: MysqlResults;
         hidden?: MysqlResults | undefined;
     }>;
-    updateTimeStamp(field?: string): Promise<void>;
+    updateTimeStamp(field?: string): Promise<boolean>;
     protected execute(sql?: string): Promise<mysqlResult>;
+    private getDateNow;
     private save;
     get(fields?: string[]): Promise<IModelResult>;
     find(primaryKey: mysqlKey, fields?: string[]): Promise<IModelResult>;
