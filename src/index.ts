@@ -206,20 +206,13 @@ export class Model {
         return await this.execute()
             .then(async (data: any) => {
                 if (this.listMethodChildren.length > 0) {
-                    // for (let i: number = 0; i < data.length; i++) {
-                    //     for (let j: number = 0; j < this.listMethodChildren.length; j++) {
-                    //         data[i][this.listMethodChildren[j]] = 
-                    //         (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
-                    //     }
-                    // }
-
                     for(const _data of data)
                         for(const methodChild of this.listMethodChildren as string[])
                             _data[methodChild] = (this[methodChild as keyof this] as Function)()({ ..._data }); 
                 }
 
-                for(const d of data) {
-                    d["save"] = this.save.call(d, this);
+                if(data != undefined && Array.isArray(data) && data.length > 0) {
+                    for(const d of data) d["save"] = this.save.call(d, this);
                 }
 
                 // console.log(this.showResult(data));
@@ -326,6 +319,7 @@ export class Model {
 
     public async update(data: Object) {
         data = Model.response(data);
+
         this.sql = this.sql
             .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
 

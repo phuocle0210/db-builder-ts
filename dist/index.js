@@ -165,18 +165,13 @@ class Model {
             return yield this.execute()
                 .then((data) => __awaiter(this, void 0, void 0, function* () {
                 if (this.listMethodChildren.length > 0) {
-                    // for (let i: number = 0; i < data.length; i++) {
-                    //     for (let j: number = 0; j < this.listMethodChildren.length; j++) {
-                    //         data[i][this.listMethodChildren[j]] = 
-                    //         (this[this.listMethodChildren[j] as keyof this] as Function)()({ ...data[i] });
-                    //     }
-                    // }
                     for (const _data of data)
                         for (const methodChild of this.listMethodChildren)
                             _data[methodChild] = this[methodChild]()(Object.assign({}, _data));
                 }
-                for (const d of data) {
-                    d["save"] = this.save.call(d, this);
+                if (data != undefined && Array.isArray(data) && data.length > 0) {
+                    for (const d of data)
+                        d["save"] = this.save.call(d, this);
                 }
                 // console.log(this.showResult(data));
                 return this.showResult(data);
