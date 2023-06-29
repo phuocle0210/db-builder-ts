@@ -9,3 +9,8 @@ export interface IModelResult {
     data: MysqlResults,
     hidden?: MysqlResults
 }
+
+export interface IGetResult {
+    data: any[],
+    hidden?: MysqlResults
+}

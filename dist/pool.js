@@ -210,16 +210,14 @@ class ModelPool extends index_1.Model {
                             rej("Không thể kết nối");
                         }
                         try {
-                            this.sql += this.order;
-                            if (this.limit != 0)
-                                this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
                             connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
                                 this.listValue = [];
                                 this.sql = this.sqlDefault;
                                 this.limit = 0;
                                 this.order = "";
-                                if (error)
-                                    rej(err);
+                                if (error) {
+                                    rej(error);
+                                }
                                 res(results);
                             });
                             connection.release();
@@ -234,7 +232,8 @@ class ModelPool extends index_1.Model {
                 if (this.enableLoop && index <= 5) {
                     return this.execute(sql, ++index);
                 }
-                return ex;
+                console.log(ex);
+                throw ex;
             }
         });
     }

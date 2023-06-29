@@ -18,6 +18,7 @@ export declare class Model {
     private ping;
     end(): void;
     static response(data: MysqlResults): any;
+    private formatCreatedAtAndUpdatedAt;
     showResult(results: MysqlResults): IModelResult;
     take(limit: number): this;
     orderBy(field: string, orderBy?: "ASC" | "DESC"): this;
@@ -33,8 +34,12 @@ export declare class Model {
     updateTimeStamp(field?: string): Promise<boolean>;
     protected execute(sql?: string): Promise<mysqlResult>;
     private getDateNow;
+    private convertDate;
     private save;
     get(fields?: string[]): Promise<IModelResult>;
+    query(sql: string, fields?: string[]): Promise<IModelResult | {
+        data: never[];
+    }>;
     find(primaryKey: mysqlKey, fields?: string[]): Promise<IModelResult>;
     first(fields?: string[]): Promise<IModelResult>;
     private escape;
@@ -53,7 +58,7 @@ export declare class Model {
     orWhere(field: string, condition: mysqlValue, value?: mysqlValue): this;
     getQuery(): string;
     getQueryNotConnection(): string;
-    protected hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
+    protected hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
     protected hasMany(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
     protected belongsToMany(target: any, tableName: string, foreignKeyOne: string, foreignKeyTwo: string): (x: any) => () => any;
 }

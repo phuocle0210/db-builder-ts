@@ -49,8 +49,24 @@ class Model {
     static response(data) {
         return JSON.parse(JSON.stringify(data));
     }
+    formatCreatedAtAndUpdatedAt(results) {
+        if (Array.isArray(results)) {
+            return results.map(result => {
+                result["created_at"] = "created_at" in result ? this.convertDate(result["created_at"]) : result["created_at"];
+                result["updated_at"] = "updated_at" in result ? this.convertDate(result["updated_at"]) : result["updated_at"];
+                return result;
+            });
+        }
+        if ("created_at" in results) {
+            results["created_at"] = this.convertDate(results["created_at"]);
+        }
+        if ("updated_at" in results) {
+            results["updated_at"] = this.convertDate(results["updated_at"]);
+        }
+        return results;
+    }
     showResult(results) {
-        let showResult = { data: results };
+        let showResult = { data: this.formatCreatedAtAndUpdatedAt(results) };
         if (this.hidden.length == 0 || showResult.data === undefined)
             return showResult;
         let hidden;
@@ -119,9 +135,6 @@ class Model {
             if (!this.ping()) {
                 this.connection = mysql2_1.default.createConnection(connectionConfig);
             }
-            this.sql += this.order;
-            if (this.limit != 0)
-                this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
             return yield new Promise((res, rej) => {
                 this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
                     this.connection.end();
@@ -140,6 +153,11 @@ class Model {
         const format = "YYYY-MM-DD HH:mm:ss";
         return (0, moment_1.default)(Date.now()).format(format);
     }
+    convertDate(timestamp) {
+        const format = "YYYY-MM-DD HH:mm:ss";
+        const date = (0, moment_1.default)(timestamp).format(format);
+        return date;
+    }
     save(model) {
         return () => {
             if ("updated_at" in this && "created_at" in this) {
@@ -152,32 +170,34 @@ class Model {
     }
     get(fields = []) {
         return __awaiter(this, void 0, void 0, function* () {
+            return this.query(this.sql, fields);
+        });
+    }
+    query(sql, fields = []) {
+        return __awaiter(this, void 0, void 0, function* () {
             if (fields.length > 0)
                 this.sql = this.sql.replace("*", fields.join(", "));
+            sql += this.order;
+            if (this.limit != 0)
+                sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`;
             const targetName = this.constructor.name;
             if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
-                // console.log(this.constructor.name)
                 const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
-                // console.log(listMethods);
                 this.listMethodChildren = listMethods;
             }
-            // console.log(this[listMethods[0] as keyof this]);
-            return yield this.execute()
+            return this.execute(sql)
                 .then((data) => __awaiter(this, void 0, void 0, function* () {
-                if (this.listMethodChildren.length > 0) {
+                if (this.listMethodChildren.length > 0)
                     for (const _data of data)
                         for (const methodChild of this.listMethodChildren)
                             _data[methodChild] = this[methodChild]()(Object.assign({}, _data));
-                }
-                if (data != undefined && Array.isArray(data) && data.length > 0) {
+                if (data != undefined && Array.isArray(data) && data.length > 0)
                     for (const d of data)
                         d["save"] = this.save.call(d, this);
-                }
-                // console.log(this.showResult(data));
                 return this.showResult(data);
             }))
                 .catch((error) => {
-                console.log(error);
+                console.log(`ERROR::: ${error}`);
                 return { data: [] };
             });
         });
@@ -190,14 +210,15 @@ class Model {
     }
     first(fields = []) {
         return __awaiter(this, void 0, void 0, function* () {
-            return yield this.get(fields)
+            this.take(1);
+            return yield this.query(this.sql, fields)
                 .then(data => data)
                 .then(({ data, hidden }) => {
-                data = Array.isArray(data) && data.length > 0 ? data[0] : data;
+                data = Array.isArray(data) && data.length > 0 ? data[0] : {};
                 hidden = Array.isArray(hidden) && hidden.length > 0 ? hidden[0] : hidden;
                 return { data, hidden };
             })
-                .catch(_ => ({ data: {}, hidden: undefined }));
+                .catch(_ => ({ data: {} }));
         });
     }
     escape(data) {
@@ -314,24 +335,22 @@ class Model {
     }
     hasOne(tableName, primaryKey, foreign) {
         return (x) => {
-            // const q = tableName.where(primaryKey, x[foreign]);
-            // q.end();
             const tableNameRelationship = tableName.getTableName();
             const _sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
-            return () => this.execute(_sql).then((data) => tableName.showResult(data[0])); //return this.execute(_sql).then((data: any) => data[0]);
+            return () => tableName.query(_sql);
         };
     }
     hasMany(tableName, primaryKey, foreign) {
         return (x) => {
             const tableNameRelationship = tableName.getTableName();
-            tableName.sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
+            const sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]}`;
             return () => {
                 // console.log("da thuc thi", _sql, x);
-                return tableName.get();
+                return tableName.query(sql);
             };
         };
     }
@@ -345,13 +364,14 @@ class Model {
             AND c.id = cm.category_id;
             */
             const tableNameTarget = target.getTableName();
-            target.sql = `SELECT t1.* 
+            const sql = `SELECT t1.* 
             FROM ${tableNameTarget} as t1, ${this.tableName} as t2, ${tableName} as t3
             WHERE t2.${this.primaryKey} = t3.${foreignKeyOne}
             AND t2.${this.primaryKey} = ${x.id}
             AND t1.${target.primaryKey} = t3.${foreignKeyTwo}`;
-            // console.log(target.sql);
-            return () => target.get();
+            return () => {
+                return target.query(sql);
+            };
         };
     }
 }

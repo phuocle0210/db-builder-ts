@@ -9,6 +9,7 @@ const { DB, ModelPool } = Builder.createConnection({
     connectionLimit: 20
 });
 
+
 class Manga extends ModelPool {
     constructor() {
         super("mangas");
@@ -16,11 +17,11 @@ class Manga extends ModelPool {
     }
 
     chapters() {
-        return this.hasMany(new Chapter(), "manga_id", "id");
+        return this.hasMany(chapterModel, "manga_id", "id");
     }
 
     categories() {
-        return this.belongsToMany(new Category(), "categories_manga", "manga_id", "category_id");
+        return this.belongsToMany(categoryModel, "categories_manga", "manga_id", "category_id");
     }
 }
 
@@ -28,8 +29,6 @@ class Category extends ModelPool {
     constructor() {
         super("categories");
     }
-
-
 }
 
 class Chapter extends ModelPool {
@@ -39,7 +38,7 @@ class Chapter extends ModelPool {
     }
 
     chapterDetails() {
-        return this.hasMany(new ChapterDetail(), "chapter_id", "id");
+        return this.hasMany(chapterDetailModel, "chapter_id", "id");
     }
 }
 
@@ -49,15 +48,14 @@ class ChapterDetail extends ModelPool {
     }
 }
 
-(async() => {
-    // const manga: Manga = new Manga();
-    // const { data, hidden }: IModelResult = await manga
-    // .take(5)
-    // .orderByDesc("created_at")
-    // .get();
-    
-    // console.log(hidden)
-    // console.log(await (data as any)[1].categories());
+const chapterModel = new Chapter();
+const chapterDetailModel = new ChapterDetail();
+const categoryModel = new Category();
+const manga: Manga = new Manga();
 
-    await DB.table("users").where("id", 1).updateTimeStamp();
+(async() => {
+    const { data: listManga }: IModelResult = await manga.take(5).orderByDesc("created_at").get();
+    const { data: listChapter, hidden: hiddenListChapter }: IModelResult = await (listManga as any)[0].chapters();
+    const { data: listChapterDetail }: IModelResult = await (listChapter as any)[0].chapterDetails();
+    console.log(listChapterDetail);
 })();

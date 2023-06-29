@@ -59,10 +59,31 @@ export class Model {
         return JSON.parse(JSON.stringify(data));
     }
 
-    public showResult(results: MysqlResults) {
-        let showResult: IModelResult = {data: results};
+    private formatCreatedAtAndUpdatedAt(results: MysqlResults) {
+        if(Array.isArray(results)) {
+            return results.map(result => {
+                result["created_at"] = "created_at" in result ? this.convertDate(result["created_at"]) : result["created_at"];
+                result["updated_at"] = "updated_at" in result ? this.convertDate(result["updated_at"]) : result["updated_at"];
+                return result;
+            });
+        }
 
-        if(this.hidden.length == 0 || showResult.data === undefined) return showResult;
+        if("created_at" in results) {
+            results["created_at"] = this.convertDate(results["created_at"] as string);
+        }
+
+        if("updated_at" in results) {
+            results["updated_at"] = this.convertDate(results["updated_at"] as string);
+        }
+
+        return results;
+    }
+
+    public showResult(results: MysqlResults) {
+        let showResult: IModelResult = {data: this.formatCreatedAtAndUpdatedAt(results)};
+
+        if(this.hidden.length == 0 || showResult.data === undefined)
+            return showResult;
 
         let hidden: typeof results;
         type ResultType = keyof typeof results;
@@ -72,10 +93,12 @@ export class Model {
 
             hidden = showResult.data.map(result => {
                 const x: typeof showResult.data[0] = {};
+
                 for(const key of this.hidden) {
                     x[key as ResultType] = result[key as ResultType];
                     delete result[key as ResultType];
                 }
+
                 return x;
             });
 
@@ -149,12 +172,6 @@ export class Model {
         if (!this.ping()) {
             this.connection = mysql.createConnection(connectionConfig);
         }
-
-        this.sql += this.order;
-
-        if(this.limit != 0)
-            this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
-
         return await new Promise((res, rej) => {
             this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
                 this.connection.end();
@@ -177,6 +194,12 @@ export class Model {
         return moment(Date.now()).format(format);
     }
 
+    private convertDate(timestamp: string) {
+        const format = "YYYY-MM-DD HH:mm:ss";
+        const date = moment(timestamp as string).format(format);
+        return date;
+    }
+
     private save(model: this) {
         return () => {
             if("updated_at" in this && "created_at" in this) {
@@ -190,38 +213,40 @@ export class Model {
     }
 
     public async get(fields: string[] = []): Promise<IModelResult> {
+        return this.query(this.sql, fields);
+    }
+
+    public async query(sql: string, fields: string[] = []) {
         if (fields.length > 0)
             this.sql = this.sql.replace("*", fields.join(", "));
 
+        sql += this.order;
+                        
+        if (this.limit != 0)
+            sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`;
+
         const targetName: string = this.constructor.name;
         if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
-            // console.log(this.constructor.name)
             const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
-            // console.log(listMethods);
             this.listMethodChildren = listMethods;
         }
 
-        // console.log(this[listMethods[0] as keyof this]);
+        return this.execute(sql)
+        .then(async (data: any) => {
+            if(this.listMethodChildren.length > 0)
+                for(const _data of data)
+                    for(const methodChild of this.listMethodChildren as string[])
+                        _data[methodChild] = (this[methodChild as keyof this] as Function)()({ ..._data });
 
-        return await this.execute()
-            .then(async (data: any) => {
-                if (this.listMethodChildren.length > 0) {
-                    for(const _data of data)
-                        for(const methodChild of this.listMethodChildren as string[])
-                            _data[methodChild] = (this[methodChild as keyof this] as Function)()({ ..._data }); 
-                }
-
-                if(data != undefined && Array.isArray(data) && data.length > 0) {
-                    for(const d of data) d["save"] = this.save.call(d, this);
-                }
-
-                // console.log(this.showResult(data));
-                return this.showResult(data);
-            })
-            .catch((error: mysql.QueryError) => {
-                console.log(error);
-                return { data:[] }
-            });
+            if(data != undefined && Array.isArray(data) && data.length > 0)
+                for(const d of data) d["save"] = this.save.call(d, this);
+            
+            return this.showResult(data);
+        })
+        .catch((error: any) => {
+            console.log(`ERROR::: ${error}`);
+            return { data: [] }
+        });
     }
 
     public async find(primaryKey: mysqlKey, fields: string[] = []) {
@@ -230,14 +255,16 @@ export class Model {
     }
 
     public async first(fields: string[] = []): Promise<IModelResult> {
-        return await this.get(fields)
+        this.take(1);
+
+        return await this.query(this.sql, fields)
         .then(data => data as IModelResult)
         .then(({ data, hidden}) => {
-            data = Array.isArray(data) && data.length > 0 ? data[0] : data;
+            data = Array.isArray(data) && data.length > 0 ? data[0] : {};
             hidden = Array.isArray(hidden) && hidden.length > 0 ? hidden[0] : hidden;
             return {data, hidden};
         })
-        .catch(_ => ({data: {}, hidden: undefined }));
+        .catch(_ => ({data: {}}));
     }
 
     private escape(data: string): string {
@@ -377,14 +404,13 @@ export class Model {
 
     protected hasOne(tableName: any, primaryKey: string, foreign: string) {
         return (x: any) => {
-            // const q = tableName.where(primaryKey, x[foreign]);
-            // q.end();
             const tableNameRelationship: string = tableName.getTableName();
+
             const _sql: string = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
 
-            return () => this.execute(_sql).then((data: any) => tableName.showResult(data[0])); //return this.execute(_sql).then((data: any) => data[0]);
+            return () => tableName.query(_sql);
         }
     }
 
@@ -392,13 +418,13 @@ export class Model {
         return (x: any) => {
             const tableNameRelationship: string = tableName.getTableName();
 
-            tableName.sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
+            const sql: string = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]}`;
 
             return () => {
                 // console.log("da thuc thi", _sql, x);
-                return tableName.get();
+                return tableName.query(sql);
             };
         }
     }
@@ -412,17 +438,17 @@ export class Model {
             WHERE m.id =  cm.manga_id
             AND c.id = cm.category_id;
             */
-
             const tableNameTarget = target.getTableName();
-            target.sql = `SELECT t1.* 
+
+            const sql: string = `SELECT t1.* 
             FROM ${tableNameTarget} as t1, ${this.tableName} as t2, ${tableName} as t3
             WHERE t2.${this.primaryKey} = t3.${foreignKeyOne}
             AND t2.${this.primaryKey} = ${x.id}
             AND t1.${target.primaryKey} = t3.${foreignKeyTwo}`;
 
-            // console.log(target.sql);
-
-            return () => target.get();
+            return () => {
+                return target.query(sql);
+            };
         }
     }
 }

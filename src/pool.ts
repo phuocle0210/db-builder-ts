@@ -240,18 +240,17 @@ class ModelPool extends Model {
                     }
     
                     try {
-                        this.sql += this.order;
-    
-                        if (this.limit != 0)
-                            this.sql += ` LIMIT ${this.limit} OFFSET ${this.offset}`;
-    
+                        
                         connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
                             this.listValue = [];
                             this.sql = this.sqlDefault;
                             this.limit = 0;
                             this.order = "";
     
-                            if (error) rej(err);
+                            if (error) {
+                                rej(error);
+                            }
+
                             res(results);
                         });
     
@@ -266,7 +265,8 @@ class ModelPool extends Model {
                 return this.execute(sql, ++index);
             }
 
-            return ex;
+            console.log(ex);
+            throw ex;
         }
     }
 
