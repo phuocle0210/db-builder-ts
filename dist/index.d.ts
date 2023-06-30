@@ -58,8 +58,8 @@ export declare class Model {
     orWhere(field: string, condition: mysqlValue, value?: mysqlValue): this;
     getQuery(): string;
     getQueryNotConnection(): string;
-    protected hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
-    protected hasMany(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
+    protected hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
+    protected hasMany(tableName: any, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
     protected belongsToMany(target: any, tableName: string, foreignKeyOne: string, foreignKeyTwo: string): (x: any) => () => any;
 }
 declare class DB {

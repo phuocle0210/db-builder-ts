@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -80,14 +71,14 @@ class Model {
                 }
                 return x;
             });
-            return Object.assign(Object.assign({}, showResult), { hidden });
+            return { ...showResult, hidden };
         }
         hidden = {};
         for (const key of this.hidden) {
             hidden[key] = showResult.data[key];
             delete showResult.data[key];
         }
-        return Object.assign(Object.assign({}, showResult), { hidden });
+        return { ...showResult, hidden };
     }
     take(limit) {
         this.limit = limit;
@@ -114,38 +105,38 @@ class Model {
         return this.execute()
             .then((data) => this.showResult(data))
             .then((data) => {
-            return Object.assign(Object.assign({}, data), { current_page: (page + 1), total_page: data.data.length });
+            return {
+                ...data,
+                current_page: (page + 1),
+                total_page: data.data.length
+            };
         });
     }
-    updateTimeStamp(field = "updated_at") {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield this.update({
-                    [field]: this.getDateNow()
-                });
-                return true;
-            }
-            catch (_) {
-                return false;
-            }
-        });
+    async updateTimeStamp(field = "updated_at") {
+        try {
+            await this.update({
+                [field]: this.getDateNow()
+            });
+            return true;
+        }
+        catch (_) {
+            return false;
+        }
     }
-    execute(sql = "") {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!this.ping()) {
-                this.connection = mysql2_1.default.createConnection(connectionConfig);
-            }
-            return yield new Promise((res, rej) => {
-                this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
-                    this.connection.end();
-                    this.listValue = [];
-                    this.sql = this.sqlDefault;
-                    this.limit = 0;
-                    this.order = "";
-                    if (error)
-                        rej(error);
-                    res(result);
-                });
+    async execute(sql = "") {
+        if (!this.ping()) {
+            this.connection = mysql2_1.default.createConnection(connectionConfig);
+        }
+        return await new Promise((res, rej) => {
+            this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
+                this.connection.end();
+                this.listValue = [];
+                this.sql = this.sqlDefault;
+                this.limit = 0;
+                this.order = "";
+                if (error)
+                    rej(error);
+                res(result);
             });
         });
     }
@@ -168,93 +159,83 @@ class Model {
             return model.where("id", this["id"]).update(this);
         };
     }
-    get(fields = []) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.query(this.sql, fields);
+    async get(fields = []) {
+        return this.query(this.sql, fields);
+    }
+    async query(sql, fields = []) {
+        if (fields.length > 0)
+            this.sql = this.sql.replace("*", fields.join(", "));
+        sql += this.order;
+        if (this.limit != 0)
+            sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`;
+        const targetName = this.constructor.name;
+        if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
+            const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
+            this.listMethodChildren = listMethods;
+        }
+        return this.execute(sql)
+            .then(async (data) => {
+            if (this.listMethodChildren.length > 0)
+                for (const _data of data)
+                    for (const methodChild of this.listMethodChildren)
+                        _data[methodChild] = this[methodChild]()({ ..._data });
+            if (data != undefined && Array.isArray(data) && data.length > 0)
+                for (const d of data)
+                    d["save"] = this.save.call(d, this);
+            return this.showResult(data);
+        })
+            .catch((error) => {
+            console.log(`ERROR::: ${error}`);
+            return { data: [] };
         });
     }
-    query(sql, fields = []) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (fields.length > 0)
-                this.sql = this.sql.replace("*", fields.join(", "));
-            sql += this.order;
-            if (this.limit != 0)
-                sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`;
-            const targetName = this.constructor.name;
-            if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
-                const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
-                this.listMethodChildren = listMethods;
-            }
-            return this.execute(sql)
-                .then((data) => __awaiter(this, void 0, void 0, function* () {
-                if (this.listMethodChildren.length > 0)
-                    for (const _data of data)
-                        for (const methodChild of this.listMethodChildren)
-                            _data[methodChild] = this[methodChild]()(Object.assign({}, _data));
-                if (data != undefined && Array.isArray(data) && data.length > 0)
-                    for (const d of data)
-                        d["save"] = this.save.call(d, this);
-                return this.showResult(data);
-            }))
-                .catch((error) => {
-                console.log(`ERROR::: ${error}`);
-                return { data: [] };
-            });
-        });
+    async find(primaryKey, fields = []) {
+        this.where(this.primaryKey, "=", primaryKey);
+        return await this.first(fields);
     }
-    find(primaryKey, fields = []) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.where(this.primaryKey, "=", primaryKey);
-            return yield this.first(fields);
-        });
-    }
-    first(fields = []) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.take(1);
-            return yield this.query(this.sql, fields)
-                .then(data => data)
-                .then(({ data, hidden }) => {
-                data = Array.isArray(data) && data.length > 0 ? data[0] : {};
-                hidden = Array.isArray(hidden) && hidden.length > 0 ? hidden[0] : hidden;
-                return { data, hidden };
-            })
-                .catch(_ => ({ data: {} }));
-        });
+    async first(fields = []) {
+        this.take(1);
+        return await this.query(this.sql, fields)
+            .then(data => data)
+            .then(({ data, hidden }) => {
+            data = Array.isArray(data) && data.length > 0 ? data[0] : {};
+            hidden = Array.isArray(hidden) && hidden.length > 0 ? hidden[0] : hidden;
+            return { data, hidden };
+        })
+            .catch(_ => ({ data: {} }));
     }
     escape(data) {
         return `\`${data}\``;
     }
-    create(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
-            const isArray = Array.isArray(data);
-            const keys = Object.keys(isArray ? data[0] : data);
-            const fillObject = Array(keys.length).fill("?");
-            const fillResult = !isArray ? fillObject : Array(data.length).fill(`(${fillObject.join(", ")})`);
-            if (isArray) {
-                data.forEach((item) => keys.forEach((key) => this.listValue.push(item[key])));
+    async create(data) {
+        this.sql = `INSERT INTO ${this.tableName}(__FIELDS__) VALUES(__VALUES__)`;
+        const isArray = Array.isArray(data);
+        const keys = Object.keys(isArray ? data[0] : data);
+        const fillObject = Array(keys.length).fill("?");
+        const fillResult = !isArray ? fillObject : Array(data.length).fill(`(${fillObject.join(", ")})`);
+        if (isArray) {
+            data.forEach((item) => keys.forEach((key) => this.listValue.push(item[key])));
+        }
+        else {
+            this.listValue = keys.map(key => data[key]);
+        }
+        this.sql = this.sql
+            .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
+            .replace(isArray ? "(__VALUES__)" : "__VALUES__", fillResult.join(", "));
+        return this.execute()
+            .then((data) => data)
+            .then(async (result) => {
+            if (result.affectedRows != 0 && result.insertId != 0) {
+                this.where("id", result.insertId);
+                for (const _key of keys)
+                    this.where(_key, data[_key]);
+                const _result = await this.first();
+                return _result;
             }
-            else {
-                this.listValue = keys.map(key => data[key]);
-            }
-            this.sql = this.sql
-                .replace("__FIELDS__", keys.map(key => this.escape(key)).join(", "))
-                .replace(isArray ? "(__VALUES__)" : "__VALUES__", fillResult.join(", "));
-            return this.execute()
-                .then((data) => data)
-                .then((result) => __awaiter(this, void 0, void 0, function* () {
-                if (result.affectedRows != 0 && result.insertId != 0) {
-                    this.where("id", result.insertId);
-                    for (const _key of keys)
-                        this.where(_key, data[_key]);
-                    const _result = yield this.first();
-                    return _result;
-                }
-                return true;
-            }))
-                .catch((err) => {
-                console.log(err);
-            });
+            return true;
+        })
+            .catch((err) => {
+            console.log(err);
         });
     }
     getListKey(data) {
@@ -278,34 +259,31 @@ class Model {
         this.sql = temp;
         return sql;
     }
-    firstOrCreate(find, create = {}) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.sqlConvertKeyAndValue(find);
-            const findFirstData = yield this.first();
-            let result = { isCreated: false };
-            return !(findFirstData === null || findFirstData === void 0 ? void 0 : findFirstData.data) || Object.keys(findFirstData.data).length == 0 ? Object.assign(Object.assign({}, result), { data: (yield this.create(Object.assign(Object.assign({}, create), find))) }) :
-                { isCreated: true, data: findFirstData };
-        });
+    async firstOrCreate(find, create = {}) {
+        this.sqlConvertKeyAndValue(find);
+        const findFirstData = await this.first();
+        let result = { isCreated: false };
+        return !findFirstData?.data || Object.keys(findFirstData.data).length == 0 ?
+            { ...result, data: (await this.create({ ...create, ...find })) } :
+            { isCreated: true, data: findFirstData };
     }
-    update(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            data = Model.response(data);
-            this.sql = this.sql
-                .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
-            const keys = Object.keys(data);
-            const temp = this.listValue.length > 0 ? this.listValue : [];
-            this.listValue = [];
-            const _data = keys.map((key) => {
-                this.listValue.push(data[key]);
-                return (this.escape(key) + " = " + "?");
-            });
-            this.listValue = [...this.listValue, ...temp];
-            this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
-            // console.log(this.sql, this.listValue);
-            return yield this.execute()
-                .then((data) => data)
-                .catch((error) => error);
+    async update(data) {
+        data = Model.response(data);
+        this.sql = this.sql
+            .replace(`SELECT * FROM ${this.tableName}`, `UPDATE ${this.tableName} SET (__FIELDS_AND_VALUES__)`);
+        const keys = Object.keys(data);
+        const temp = this.listValue.length > 0 ? this.listValue : [];
+        this.listValue = [];
+        const _data = keys.map((key) => {
+            this.listValue.push(data[key]);
+            return (this.escape(key) + " = " + "?");
         });
+        this.listValue = [...this.listValue, ...temp];
+        this.sql = this.sql.replace("(__FIELDS_AND_VALUES__)", _data.join(", "));
+        // console.log(this.sql, this.listValue);
+        return await this.execute()
+            .then((data) => data)
+            .catch((error) => error);
     }
     kiemTraDieuKien(sql, dieuKien = "AND") {
         return sql.includes("WHERE") ? dieuKien : "WHERE";
@@ -339,7 +317,10 @@ class Model {
             const _sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
-            return () => tableName.query(_sql);
+            return async () => tableName.query(_sql)
+                .then((data) => {
+                return Array.isArray(data.data) ? data.data[0] : data.data;
+            });
         };
     }
     hasMany(tableName, primaryKey, foreign) {
@@ -348,7 +329,7 @@ class Model {
             const sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]}`;
-            return () => {
+            return async () => {
                 // console.log("da thuc thi", _sql, x);
                 return tableName.query(sql);
             };

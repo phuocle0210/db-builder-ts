@@ -410,7 +410,10 @@ export class Model {
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
 
-            return () => tableName.query(_sql);
+            return async () => tableName.query(_sql)
+            .then((data: IModelResult) => {
+                return Array.isArray(data.data) ? data.data[0] : data.data
+            });
         }
     }
 
@@ -422,7 +425,7 @@ export class Model {
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]}`;
 
-            return () => {
+            return async () => {
                 // console.log("da thuc thi", _sql, x);
                 return tableName.query(sql);
             };
