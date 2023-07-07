@@ -84,6 +84,13 @@ class Model {
         this.limit = limit;
         return this;
     }
+    async delete(all = false) {
+        const sqlDelete = this.sql.replace('SELECT *', 'DELETE');
+        if (this.sql.toLowerCase().includes('where')) {
+            return this.execute(sqlDelete).then(() => true);
+        }
+        return all ? this.query(sqlDelete).then(() => true) : false;
+    }
     orderBy(field, orderBy = "ASC") {
         this.order = ` ORDER BY ${this.escape(field)} ${orderBy}`;
         return this;
@@ -167,7 +174,7 @@ class Model {
             this.sql = this.sql.replace("*", fields.join(", "));
         sql += this.order;
         if (this.limit != 0)
-            sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`;
+            sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`.trimEnd();
         const targetName = this.constructor.name;
         if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
             const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
@@ -296,6 +303,12 @@ class Model {
         // console.log(this.listValue);
         return this;
     }
+    whereNotIn(field, data) {
+        const dieuKien = this.kiemTraDieuKien(this.sql);
+        this.sql += ` ${dieuKien} ${this.escape(field)} NOT IN (${Array(data.length).fill('?').join(',')})`;
+        this.listValue = [...this.listValue, ...data];
+        return this;
+    }
     orWhere(field, condition, value = undefined) {
         const dieuKien = this.kiemTraDieuKien(this.sql, "OR");
         const checkCondition = value !== undefined && typeof (condition) === "string";
@@ -308,7 +321,9 @@ class Model {
         this.connection.end();
         return this.sql;
     }
-    getQueryNotConnection() {
+    getQueryNotConnection(showListValue = false) {
+        if (showListValue)
+            console.log(this.listValue);
         return this.sql;
     }
     hasOne(tableName, primaryKey, foreign) {
@@ -317,10 +332,12 @@ class Model {
             const _sql = `SELECT ${tableNameRelationship}.* FROM ${this.tableName}, ${tableNameRelationship}
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
-            return async () => tableName.query(_sql)
-                .then((data) => {
-                return Array.isArray(data.data) ? data.data[0] : data.data;
-            });
+            return () => {
+                return tableName.query(_sql)
+                    .then((result) => {
+                    return { ...result, data: Array.isArray(result.data) ? result.data[0] : result.data };
+                });
+            };
         };
     }
     hasMany(tableName, primaryKey, foreign) {

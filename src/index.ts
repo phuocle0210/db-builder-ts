@@ -121,6 +121,16 @@ export class Model {
         return this;
     }
 
+    public async delete(all: boolean = false) {
+        const sqlDelete: string = this.sql.replace('SELECT *', 'DELETE');
+
+        if(this.sql.toLowerCase().includes('where')) {
+            return this.execute(sqlDelete).then(() => true);
+        }
+
+        return all ? this.query(sqlDelete).then(() => true) : false;
+    }
+
     public orderBy(field: string, orderBy: "ASC" | "DESC" = "ASC"): this {
         this.order = ` ORDER BY ${this.escape(field)} ${orderBy}`;
         return this;
@@ -173,18 +183,21 @@ export class Model {
             this.connection = mysql.createConnection(connectionConfig);
         }
         return await new Promise((res, rej) => {
-            this.connection.query(sql != "" ? sql : this.sql, this.listValue, (error, result, fields) => {
-                this.connection.end();
+            this.connection.query(
+                sql != "" ? sql : this.sql, 
+                this.listValue, 
+                (error, result, fields) => {
+                    this.connection.end();
 
-                this.listValue = [];
-                this.sql = this.sqlDefault;
-                this.limit = 0;
-                this.order = "";
+                    this.listValue = [];
+                    this.sql = this.sqlDefault;
+                    this.limit = 0;
+                    this.order = "";
 
-                if (error)
-                    rej(error);
+                    if (error)
+                        rej(error);
 
-                res(result);
+                    res(result);
             });
         });
     }
@@ -223,14 +236,14 @@ export class Model {
         sql += this.order;
                         
         if (this.limit != 0)
-            sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`;
+            sql += ` LIMIT ${this.limit} ${this.offset != 0 ? `OFFSET ${this.offset}` : ''}`.trimEnd();
 
         const targetName: string = this.constructor.name;
         if ((this instanceof Model) && targetName != "Model" && targetName != "ModelPool") {
             const [_, ...listMethods] = Object.getOwnPropertyNames(this.constructor.prototype);
             this.listMethodChildren = listMethods;
         }
-
+        
         return this.execute(sql)
         .then(async (data: any) => {
             if(this.listMethodChildren.length > 0)
@@ -383,6 +396,13 @@ export class Model {
         return this;
     }
 
+    public whereNotIn(field: string, data: any[]) {
+        const dieuKien: string = this.kiemTraDieuKien(this.sql);
+        this.sql += ` ${dieuKien} ${this.escape(field)} NOT IN (${Array(data.length).fill('?').join(',')})`;
+        this.listValue = [...this.listValue, ...data];
+        return this;
+    }
+
     public orWhere(field: string, condition: mysqlValue, value: mysqlValue = undefined) {
         const dieuKien: string = this.kiemTraDieuKien(this.sql, "OR");
         const checkCondition: boolean = value !== undefined && typeof (condition) === "string";
@@ -398,7 +418,8 @@ export class Model {
         return this.sql;
     }
 
-    public getQueryNotConnection(): string {
+    public getQueryNotConnection(showListValue: boolean = false) {
+        if(showListValue) console.log(this.listValue);
         return this.sql;
     }
 
@@ -410,10 +431,12 @@ export class Model {
             WHERE ${this.tableName}.${foreign} = ${tableNameRelationship}.${primaryKey}
             AND ${this.tableName}.${foreign} = ${x[foreign]} LIMIT 1`;
 
-            return async () => tableName.query(_sql)
-            .then((data: IModelResult) => {
-                return Array.isArray(data.data) ? data.data[0] : data.data
-            });
+            return () => {
+                return tableName.query(_sql)
+                .then((result: IModelResult) => {
+                    return {...result, data: Array.isArray(result.data) ? result.data[0] : result.data}
+                });
+            }
         }
     }
 

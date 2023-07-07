@@ -12,6 +12,7 @@ class ModelPool extends index_1.Model {
         this.enableLoop = false;
     }
     async execute(sql = "", index = 0) {
+        var temp = this.listValue;
         try {
             return await new Promise((res, rej) => {
                 connectConfig.getConnection((err, connection) => {
@@ -20,9 +21,9 @@ class ModelPool extends index_1.Model {
                         rej("Không thể kết nối");
                     }
                     try {
-                        connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
-                            this.listValue = [];
+                        connection.query((sql != "" ? sql : this.sql), this.listValue, (error, results, fields) => {
                             this.sql = this.sqlDefault;
+                            this.listValue = [];
                             this.limit = 0;
                             this.order = "";
                             if (error) {
@@ -42,7 +43,7 @@ class ModelPool extends index_1.Model {
             if (this.enableLoop && index <= 5) {
                 return this.execute(sql, ++index);
             }
-            console.log(ex, this.listValue);
+            console.log(ex, this.listValue, temp);
             throw ex;
         }
     }

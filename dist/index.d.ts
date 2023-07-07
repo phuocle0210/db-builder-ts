@@ -21,6 +21,7 @@ export declare class Model {
     private formatCreatedAtAndUpdatedAt;
     showResult(results: MysqlResults): IModelResult;
     take(limit: number): this;
+    delete(all?: boolean): Promise<boolean>;
     orderBy(field: string, orderBy?: "ASC" | "DESC"): this;
     orderByDesc(field: string): this;
     orderByAsc(field: string): this;
@@ -55,10 +56,11 @@ export declare class Model {
     update(data: Object): Promise<any>;
     private kiemTraDieuKien;
     where(field: string, condition: mysqlValue, value?: mysqlValue): this;
+    whereNotIn(field: string, data: any[]): this;
     orWhere(field: string, condition: mysqlValue, value?: mysqlValue): this;
     getQuery(): string;
-    getQueryNotConnection(): string;
-    protected hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
+    getQueryNotConnection(showListValue?: boolean): string;
+    protected hasOne(tableName: any, primaryKey: string, foreign: string): (x: any) => () => any;
     protected hasMany(tableName: any, primaryKey: string, foreign: string): (x: any) => () => Promise<any>;
     protected belongsToMany(target: any, tableName: string, foreignKeyOne: string, foreignKeyTwo: string): (x: any) => () => any;
 }

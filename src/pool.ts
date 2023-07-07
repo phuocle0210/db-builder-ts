@@ -1,5 +1,4 @@
-import mysql, { ResultSetHeader } from "mysql2";
-import { PoolConnection } from "mysql2/promise";
+import mysql from "mysql2";
 import { Model } from "./index";
 
 let connectConfig: mysql.Pool;
@@ -13,6 +12,8 @@ class ModelPool extends Model {
     }
 
     protected override async execute(sql: string = "", index: number = 0): Promise<any> {
+        var temp = this.listValue;
+
         try {
             return await new Promise((res, rej) => {
                 connectConfig.getConnection((err, connection) => {
@@ -21,19 +22,21 @@ class ModelPool extends Model {
                         rej("Không thể kết nối");
                     }
     
-                    try {
-                        
-                        connection.query(sql != "" ? sql : this.sql, this.listValue, (error, results, fields) => {
-                            this.listValue = [];
-                            this.sql = this.sqlDefault;
-                            this.limit = 0;
-                            this.order = "";
-    
-                            if (error) {
-                                rej(error);
-                            }
+                    try {           
+                        connection.query(
+                            (sql != "" ? sql : this.sql), 
+                            this.listValue, 
+                            (error, results, fields) => {
+                                this.sql = this.sqlDefault;
+                                this.listValue = [];
+                                this.limit = 0;
+                                this.order = "";
+        
+                                if (error) {
+                                    rej(error);
+                                }
 
-                            res(results);
+                                res(results);
                         });
     
                         connection.release();
@@ -47,7 +50,8 @@ class ModelPool extends Model {
                 return this.execute(sql, ++index);
             }
 
-            console.log(ex, this.listValue);
+            console.log(ex, this.listValue, temp);
+        
             throw ex;
         }
     }
