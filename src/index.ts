@@ -156,12 +156,16 @@ export class Model {
 
         this.offset = (page * limit);
 
-        return this.execute()
-        .then((data: mysqlResult) => this.showResult(data))
+        const sqlPaginate: string = this.sql;
+        const listValuePaginate: typeof this.listValue = [...this.listValue];
+        
+        return this.query(this.sql)
         .then((data: IModelResult) => {
             return {
                 ...data,
                 current_page: (page + 1),
+                next: (page + 2),
+                previous: ((page + 1) - 1 <= 1 ? 1 : (page + 1) - 1),
                 total_page: (data.data as []).length
             }
         });

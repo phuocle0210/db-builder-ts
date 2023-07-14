@@ -109,12 +109,15 @@ class Model {
         this.take(limit);
         page = page - 1 >= 0 ? (page - 1) : 0;
         this.offset = (page * limit);
-        return this.execute()
-            .then((data) => this.showResult(data))
+        const sqlPaginate = this.sql;
+        const listValuePaginate = [...this.listValue];
+        return this.query(this.sql)
             .then((data) => {
             return {
                 ...data,
                 current_page: (page + 1),
+                next: (page + 2),
+                previous: ((page + 1) - 1 <= 1 ? 1 : (page + 1) - 1),
                 total_page: data.data.length
             };
         });

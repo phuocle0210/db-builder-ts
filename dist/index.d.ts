@@ -28,6 +28,8 @@ export declare class Model {
     setOffSet(skip: number): this;
     paginate(limit: number, page: number): Promise<{
         current_page: number;
+        next: number;
+        previous: number;
         total_page: 0;
         data: MysqlResults;
         hidden?: MysqlResults | undefined;
